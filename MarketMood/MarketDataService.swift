@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 struct MarketQuote: Identifiable, Equatable {
     let symbol: String
@@ -34,61 +35,147 @@ enum MarketDataError: Error {
 }
 
 struct MarketDataService {
-    private let baseURL = URL(string: "https://query1.finance.yahoo.com/v7/finance/quote")!
+    private let baseURL = URL(string: "https://www.alphavantage.co/query")!
+    private let apiKey = "FJY3KQ4JO44PVJVG"
+    private let logger = Logger(subsystem: "com.marketmood", category: "MarketDataService")
 
     func fetchQuotes(for symbols: [String] = ["SPY", "QQQ", "DIA"]) async throws -> [MarketQuote] {
-        guard let url = url(for: symbols) else {
+        print("🔍 DEBUG - Fetching quotes for symbols: \(symbols.joined(separator: ", "))")
+        
+        // Alpha Vantage GLOBAL_QUOTE only accepts one symbol at a time, so fetch them in parallel
+        return try await withThrowingTaskGroup(of: MarketQuote.self) { group in
+            for symbol in symbols {
+                group.addTask {
+                    try await self.fetchQuote(for: symbol)
+                }
+            }
+            
+            var quotes: [MarketQuote] = []
+            for try await quote in group {
+                quotes.append(quote)
+            }
+            
+            // Sort quotes to match the input symbol order
+            return symbols.compactMap { symbol in
+                quotes.first { $0.symbol == symbol }
+            }
+        }
+    }
+    
+    private func fetchQuote(for symbol: String) async throws -> MarketQuote {
+        guard let url = url(for: symbol) else {
+            logger.error("Failed to generate URL for symbol: \(symbol)")
             throw MarketDataError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        // Debug: Log the generated URL
+        logger.info("Fetching quote from URL: \(url.absoluteString)")
+        print("🔍 DEBUG - Generated URL for \(symbol): \(url.absoluteString)")
 
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200..<300).contains(httpResponse.statusCode) {
-            throw MarketDataError.invalidResponse(statusCode: httpResponse.statusCode)
+        let request = URLRequest(url: url)
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            logger.error("Network request failed for \(symbol): \(error.localizedDescription)")
+            print("🔍 DEBUG - Network error for \(symbol): \(error)")
+            throw error
         }
 
-        let decoded = try JSONDecoder().decode(YahooQuoteEnvelope.self, from: data)
-        let results = decoded.quoteResponse.result
+        // Debug: Log response details
+        if let httpResponse = response as? HTTPURLResponse {
+            print("🔍 DEBUG - Response status code for \(symbol): \(httpResponse.statusCode)")
+            
+            // Log response body for error cases
+            if !(200..<300).contains(httpResponse.statusCode) {
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("🔍 DEBUG - Response body for \(symbol): \(responseString)")
+                    logger.error("Received error response for \(symbol) (\(httpResponse.statusCode)): \(responseString.prefix(200))")
+                } else {
+                    print("🔍 DEBUG - Response body for \(symbol): <unable to decode as UTF-8, \(data.count) bytes>")
+                }
+                throw MarketDataError.invalidResponse(statusCode: httpResponse.statusCode)
+            }
+        }
 
-        let quotes = try symbols.map { symbol -> MarketQuote in
-            guard let quote = results.first(where: { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame }),
-                  let price = quote.regularMarketPrice else {
+        print("🔍 DEBUG - Received \(data.count) bytes of data for \(symbol)")
+
+        // Debug: Try to decode and log success
+        let decoded: AlphaVantageQuoteResponse
+        do {
+            decoded = try JSONDecoder().decode(AlphaVantageQuoteResponse.self, from: data)
+            print("🔍 DEBUG - Successfully decoded JSON response for \(symbol)")
+        } catch {
+            // Log the raw response if decoding fails
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("🔍 DEBUG - Failed to decode JSON for \(symbol). Response body: \(responseString)")
+                logger.error("JSON decode failed for \(symbol): \(error.localizedDescription)")
+            }
+            throw error
+        }
+        
+        guard let globalQuote = decoded.globalQuote else {
+            // Check for API error messages
+            if let errorMessage = decoded.errorMessage, let note = decoded.note {
+                print("🔍 DEBUG - Alpha Vantage API error: \(errorMessage), Note: \(note)")
+                logger.error("Alpha Vantage API error for \(symbol): \(errorMessage)")
                 throw MarketDataError.missingQuote(symbol: symbol)
             }
-
-            guard let previousClose = quote.regularMarketPreviousClose else {
-                throw MarketDataError.missingPreviousClose(symbol: symbol)
-            }
-
-            return MarketQuote(symbol: quote.symbol, price: price, previousClose: previousClose)
+            logger.warning("Missing Global Quote data for symbol: \(symbol)")
+            throw MarketDataError.missingQuote(symbol: symbol)
         }
 
-        return quotes
+        guard let priceString = globalQuote.price,
+              let price = Double(priceString) else {
+            logger.warning("Missing or invalid price for symbol: \(symbol)")
+            throw MarketDataError.missingQuote(symbol: symbol)
+        }
+
+        guard let previousCloseString = globalQuote.previousClose,
+              let previousClose = Double(previousCloseString) else {
+            logger.warning("Missing or invalid previous close for symbol: \(symbol)")
+            throw MarketDataError.missingPreviousClose(symbol: symbol)
+        }
+
+        let quoteResult = MarketQuote(symbol: globalQuote.symbol ?? symbol, price: price, previousClose: previousClose)
+        print("🔍 DEBUG - Parsed quote: \(symbol) = $\(price) (prev: $\(previousClose))")
+        return quoteResult
     }
 
-    private func url(for symbols: [String]) -> URL? {
-        guard !symbols.isEmpty else { return nil }
-
+    private func url(for symbol: String) -> URL? {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         components?.queryItems = [
-            URLQueryItem(name: "symbols", value: symbols.joined(separator: ","))
+            URLQueryItem(name: "function", value: "GLOBAL_QUOTE"),
+            URLQueryItem(name: "symbol", value: symbol),
+            URLQueryItem(name: "apikey", value: apiKey)
         ]
 
         return components?.url
     }
 }
 
-private struct YahooQuoteEnvelope: Decodable {
-    let quoteResponse: QuoteResponse
-
-    struct QuoteResponse: Decodable {
-        let result: [Quote]
+// Alpha Vantage GLOBAL_QUOTE response structure
+private struct AlphaVantageQuoteResponse: Decodable {
+    let globalQuote: GlobalQuote?
+    let errorMessage: String?
+    let note: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case globalQuote = "Global Quote"
+        case errorMessage = "Error Message"
+        case note = "Note"
     }
-}
-
-private struct Quote: Decodable {
-    let symbol: String
-    let regularMarketPrice: Double?
-    let regularMarketPreviousClose: Double?
+    
+    struct GlobalQuote: Decodable {
+        let symbol: String?
+        let price: String?
+        let previousClose: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case symbol = "01. symbol"
+            case price = "05. price"
+            case previousClose = "08. previous close"
+        }
+    }
 }
