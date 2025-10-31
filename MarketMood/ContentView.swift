@@ -23,6 +23,14 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let mood = viewModel.mood {
+                    Section("Mood") {
+                        Text(mood)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                    }
+                }
+
                 Section("Quotes") {
                     if viewModel.quotes.isEmpty {
                         if viewModel.isLoading {
@@ -81,10 +89,32 @@ struct ContentView: View {
             Text(quote.symbol)
                 .font(.headline)
             Spacer()
-            Text(quote.price, format: .currency(code: "USD"))
-                .monospacedDigit()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(quote.price, format: .currency(code: "USD"))
+                    .monospacedDigit()
+                changeLabel(for: quote)
+            }
         }
         .accessibilityLabel("\(quote.symbol) trading at \(quote.price, format: .currency(code: "USD"))")
+    }
+
+    private func changeLabel(for quote: MarketQuote) -> some View {
+        let change = quote.change
+        let percent = quote.changePercent
+        let changeColor: Color = change >= 0 ? .green : .red
+        let sign = change >= 0 ? "+" : "-"
+        let formattedChange = abs(change).formatted(.currency(code: "USD"))
+        let formattedPercent = abs(percent).formatted(.percent.precision(.fractionLength(2)))
+        let accessibilityDirection = change >= 0 ? "up" : "down"
+        let accessibilityChange = abs(change).formatted(.currency(code: "USD"))
+        let accessibilityPercent = abs(percent).formatted(.percent.precision(.fractionLength(2)))
+        let accessibilityText = "\(quote.symbol) is \(accessibilityDirection) \(accessibilityChange) or \(accessibilityPercent) since the prior close."
+
+        return Text("\(sign)\(formattedChange) (\(sign)\(formattedPercent))")
+            .font(.caption)
+            .monospacedDigit()
+            .foregroundStyle(changeColor)
+            .accessibilityLabel(accessibilityText)
     }
 }
 
@@ -92,10 +122,11 @@ struct ContentView: View {
     ContentView(
         viewModel: MarketMoodViewModel(
             initialQuotes: [
-                MarketQuote(symbol: "SPY", price: 427.83),
-                MarketQuote(symbol: "QQQ", price: 364.12),
-                MarketQuote(symbol: "DIA", price: 345.01)
-            ]
+                MarketQuote(symbol: "SPY", price: 427.83, previousClose: 421.00),
+                MarketQuote(symbol: "QQQ", price: 364.12, previousClose: 360.50),
+                MarketQuote(symbol: "DIA", price: 345.01, previousClose: 349.75)
+            ],
+            initialMood: "Markets feel steady and balanced."
         )
     )
 }

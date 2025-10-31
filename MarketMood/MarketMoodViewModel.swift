@@ -13,6 +13,7 @@ final class MarketMoodViewModel: ObservableObject {
     @Published private(set) var quotes: [MarketQuote]
     @Published private(set) var isLoading: Bool
     @Published private(set) var errorMessage: String?
+    @Published private(set) var mood: String?
 
     private let dataService: MarketDataService
 
@@ -20,24 +21,28 @@ final class MarketMoodViewModel: ObservableObject {
         dataService: MarketDataService,
         initialQuotes: [MarketQuote] = [],
         initialIsLoading: Bool = false,
-        initialErrorMessage: String? = nil
+        initialErrorMessage: String? = nil,
+        initialMood: String? = nil
     ) {
         self.dataService = dataService
         self.quotes = initialQuotes
         self.isLoading = initialIsLoading
         self.errorMessage = initialErrorMessage
+        self.mood = initialMood
     }
 
     convenience init(
         initialQuotes: [MarketQuote] = [],
         initialIsLoading: Bool = false,
-        initialErrorMessage: String? = nil
+        initialErrorMessage: String? = nil,
+        initialMood: String? = nil
     ) {
         self.init(
             dataService: MarketDataService(),
             initialQuotes: initialQuotes,
             initialIsLoading: initialIsLoading,
-            initialErrorMessage: initialErrorMessage
+            initialErrorMessage: initialErrorMessage,
+            initialMood: initialMood
         )
     }
 
@@ -46,13 +51,16 @@ final class MarketMoodViewModel: ObservableObject {
 
         isLoading = true
         errorMessage = nil
+        mood = nil
 
         do {
             let fetchedQuotes = try await dataService.fetchQuotes()
             quotes = fetchedQuotes
+            mood = makeMood(from: fetchedQuotes)
         } catch {
             quotes = []
             errorMessage = message(for: error)
+            mood = nil
         }
 
         isLoading = false
@@ -66,8 +74,29 @@ final class MarketMoodViewModel: ObservableObject {
             return "Received an unexpected response (\(statusCode))."
         case let MarketDataError.missingQuote(symbol):
             return "Missing market data for \(symbol)."
+        case let MarketDataError.missingPreviousClose(symbol):
+            return "Missing prior close data for \(symbol)."
         default:
             return "Something went wrong while fetching the market data."
+        }
+    }
+
+    private func makeMood(from quotes: [MarketQuote]) -> String? {
+        guard !quotes.isEmpty else { return nil }
+
+        let averageChange = quotes.map(\.changePercent).reduce(0, +) / Double(quotes.count)
+
+        switch averageChange {
+        case let value where value >= 0.015:
+            return "The market is euphoric with strong gains."
+        case let value where value >= 0.005:
+            return "The market feels upbeat with solid momentum."
+        case let value where value <= -0.015:
+            return "The market is stressed with sharp losses."
+        case let value where value <= -0.005:
+            return "The market feels cautious after a pullback."
+        default:
+            return "The market mood is steady and balanced."
         }
     }
 }
