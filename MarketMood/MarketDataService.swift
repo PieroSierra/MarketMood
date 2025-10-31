@@ -43,22 +43,64 @@ struct MarketDataService {
         print("🔍 DEBUG - Fetching quotes for symbols: \(symbols.joined(separator: ", "))")
         
         // Alpha Vantage GLOBAL_QUOTE only accepts one symbol at a time, so fetch them in parallel
-        return try await withThrowingTaskGroup(of: MarketQuote.self) { group in
+        return try await withThrowingTaskGroup(of: (String, Result<MarketQuote, Error>).self) { group in
             for symbol in symbols {
                 group.addTask {
-                    try await self.fetchQuote(for: symbol)
+                    do {
+                        let quote = try await self.fetchQuote(for: symbol)
+                        return (symbol, .success(quote))
+                    } catch {
+                        // Return failure result instead of throwing
+                        print("🔍 DEBUG - Failed to fetch \(symbol): \(error)")
+                        return (symbol, .failure(error))
+                    }
                 }
             }
             
             var quotes: [MarketQuote] = []
-            for try await quote in group {
-                quotes.append(quote)
+            var errorsBySymbol: [String: Error] = [:]
+            
+            for try await (symbol, result) in group {
+                switch result {
+                case .success(let quote):
+                    quotes.append(quote)
+                    print("🔍 DEBUG - Successfully collected quote for \(symbol)")
+                case .failure(let error):
+                    errorsBySymbol[symbol] = error
+                    // If it's a cancellation error, just log it (common in previews)
+                    if let urlError = error as? URLError, urlError.code == .cancelled {
+                        print("🔍 DEBUG - Request cancelled for \(symbol) (this is normal in previews)")
+                    } else {
+                        print("🔍 DEBUG - Error fetching \(symbol): \(error)")
+                    }
+                }
             }
             
-            // Sort quotes to match the input symbol order
-            return symbols.compactMap { symbol in
-                quotes.first { $0.symbol == symbol }
+            // If we got at least some quotes, return them (partial success)
+            // Otherwise throw the first error
+            if quotes.isEmpty {
+                if let firstSymbol = symbols.first, let firstError = errorsBySymbol[firstSymbol] {
+                    throw firstError
+                } else {
+                    throw MarketDataError.missingQuote(symbol: symbols.first ?? "UNKNOWN")
+                }
             }
+            
+            print("🔍 DEBUG - Collected \(quotes.count) quotes out of \(symbols.count) requested")
+            print("🔍 DEBUG - Collected quote symbols: \(quotes.map { $0.symbol })")
+            print("🔍 DEBUG - Looking for symbols: \(symbols)")
+            
+            // Sort quotes to match the input symbol order
+            // Use case-insensitive comparison for symbol matching
+            let result = symbols.compactMap { requestedSymbol in
+                quotes.first { quote in
+                    quote.symbol.caseInsensitiveCompare(requestedSymbol) == .orderedSame
+                }
+            }
+            
+            print("🔍 DEBUG - Final result count: \(result.count), symbols: \(result.map { $0.symbol })")
+            
+            return result
         }
     }
     
@@ -101,11 +143,19 @@ struct MarketDataService {
 
         print("🔍 DEBUG - Received \(data.count) bytes of data for \(symbol)")
 
+        // Debug: Log raw response first
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🔍 DEBUG - Raw JSON response for \(symbol): \(responseString)")
+        }
+        
         // Debug: Try to decode and log success
         let decoded: AlphaVantageQuoteResponse
         do {
             decoded = try JSONDecoder().decode(AlphaVantageQuoteResponse.self, from: data)
             print("🔍 DEBUG - Successfully decoded JSON response for \(symbol)")
+            print("🔍 DEBUG - decoded.globalQuote is nil: \(decoded.globalQuote == nil)")
+            print("🔍 DEBUG - decoded.errorMessage: \(decoded.errorMessage ?? "nil")")
+            print("🔍 DEBUG - decoded.note: \(decoded.note ?? "nil")")
         } catch {
             // Log the raw response if decoding fails
             if let responseString = String(data: data, encoding: .utf8) {
@@ -116,15 +166,27 @@ struct MarketDataService {
         }
         
         guard let globalQuote = decoded.globalQuote else {
-            // Check for API error messages
-            if let errorMessage = decoded.errorMessage, let note = decoded.note {
-                print("🔍 DEBUG - Alpha Vantage API error: \(errorMessage), Note: \(note)")
-                logger.error("Alpha Vantage API error for \(symbol): \(errorMessage)")
+            // Check for API error messages, notes, and rate limit information
+            if let information = decoded.information {
+                print("🔍 DEBUG - Alpha Vantage API information (rate limit?): \(information)")
+                logger.warning("Alpha Vantage API information for \(symbol): \(information)")
+                // Rate limit hit - this is a recoverable error, but we still can't provide data
                 throw MarketDataError.missingQuote(symbol: symbol)
             }
+            if let errorMessage = decoded.errorMessage {
+                print("🔍 DEBUG - Alpha Vantage API error message: \(errorMessage)")
+                logger.error("Alpha Vantage API error for \(symbol): \(errorMessage)")
+            }
+            if let note = decoded.note {
+                print("🔍 DEBUG - Alpha Vantage API note: \(note)")
+                logger.warning("Alpha Vantage API note for \(symbol): \(note)")
+            }
+            print("🔍 DEBUG - globalQuote is nil for \(symbol), throwing missingQuote error")
             logger.warning("Missing Global Quote data for symbol: \(symbol)")
             throw MarketDataError.missingQuote(symbol: symbol)
         }
+        
+        print("🔍 DEBUG - globalQuote found for \(symbol): symbol=\(globalQuote.symbol ?? "nil"), price=\(globalQuote.price ?? "nil"), previousClose=\(globalQuote.previousClose ?? "nil")")
 
         guard let priceString = globalQuote.price,
               let price = Double(priceString) else {
@@ -138,8 +200,9 @@ struct MarketDataService {
             throw MarketDataError.missingPreviousClose(symbol: symbol)
         }
 
-        let quoteResult = MarketQuote(symbol: globalQuote.symbol ?? symbol, price: price, previousClose: previousClose)
-        print("🔍 DEBUG - Parsed quote: \(symbol) = $\(price) (prev: $\(previousClose))")
+        let returnedSymbol = globalQuote.symbol ?? symbol
+        let quoteResult = MarketQuote(symbol: returnedSymbol, price: price, previousClose: previousClose)
+        print("🔍 DEBUG - Parsed quote: \(symbol) -> returned symbol: '\(returnedSymbol)' = $\(price) (prev: $\(previousClose))")
         return quoteResult
     }
 
@@ -160,11 +223,13 @@ private struct AlphaVantageQuoteResponse: Decodable {
     let globalQuote: GlobalQuote?
     let errorMessage: String?
     let note: String?
+    let information: String?  // Rate limit messages
     
     enum CodingKeys: String, CodingKey {
         case globalQuote = "Global Quote"
         case errorMessage = "Error Message"
         case note = "Note"
+        case information = "Information"
     }
     
     struct GlobalQuote: Decodable {
