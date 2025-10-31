@@ -6,56 +6,96 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @StateObject private var viewModel: MarketMoodViewModel
+
+    @MainActor
+    init() {
+        _viewModel = StateObject(wrappedValue: MarketMoodViewModel())
+    }
+
+    @MainActor
+    init(viewModel: MarketMoodViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationStack {
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                Section("Quotes") {
+                    if viewModel.quotes.isEmpty {
+                        if viewModel.isLoading {
+                            loadingRow
+                        } else {
+                            placeholderRow
+                        }
+                    } else {
+                        ForEach(viewModel.quotes) { quote in
+                            quoteRow(quote)
+                        }
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+
+                if let errorMessage = viewModel.errorMessage {
+                    Section("Status") {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                        Button {
+                            Task { await viewModel.loadQuotes() }
+                        } label: {
+                            Label("Retry", systemImage: "arrow.clockwise")
+                        }
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .listStyle(.insetGrouped)
+            .navigationTitle("Market Mood")
+            .task {
+                if viewModel.quotes.isEmpty {
+                    await viewModel.loadQuotes()
+                }
+            }
+            .refreshable {
+                await viewModel.loadQuotes()
+            }
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+    private var loadingRow: some View {
+        HStack {
+            Spacer()
+            ProgressView()
+                .progressViewStyle(.circular)
+            Spacer()
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
+    private var placeholderRow: some View {
+        Text("No market data available yet.")
+            .foregroundStyle(.secondary)
+    }
+
+    private func quoteRow(_ quote: MarketQuote) -> some View {
+        HStack {
+            Text(quote.symbol)
+                .font(.headline)
+            Spacer()
+            Text(quote.price, format: .currency(code: "USD"))
+                .monospacedDigit()
         }
+        .accessibilityLabel("\(quote.symbol) trading at \(quote.price, format: .currency(code: "USD"))")
     }
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+    ContentView(
+        viewModel: MarketMoodViewModel(
+            initialQuotes: [
+                MarketQuote(symbol: "SPY", price: 427.83),
+                MarketQuote(symbol: "QQQ", price: 364.12),
+                MarketQuote(symbol: "DIA", price: 345.01)
+            ]
+        )
+    )
 }
