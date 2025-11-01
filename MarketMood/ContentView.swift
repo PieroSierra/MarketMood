@@ -33,6 +33,9 @@ struct ContentView: View {
     // Add stock dialog state
     @State private var showAddDialog = false
     @State private var newSymbolText = ""
+    
+    // Ripple effect trigger
+    @State private var rippleTrigger = UUID()
 
     // Define 8 complementary colors as hex values
     // Good market colors: green, blue, yellow, aquamarine
@@ -40,6 +43,9 @@ struct ContentView: View {
 
     // Bad market colors: red, purple, orange, fuchsia
     private static let badColorHex = [0xfc5858, 0x9932CC, 0xFF8C00, 0xFF00FF]
+    
+    // Neutral market colors: blue, cyan, teal, aqua
+    private static let neutralColorHex = [0x0000FF, 0x00FFFF, 0x008080, 0x00FFFF]
 
     // Helper to mix color with white (50/50 blend) using hex arithmetic
     private func halfMixWithWhite(_ hexColor: Int) -> Color {
@@ -102,12 +108,13 @@ struct ContentView: View {
             // Market down a bit - use bad colors half-mixed with white
             return Self.badColorHex.map { halfMixWithWhite($0) }
         default:
-            // Steady - white to light gray
-            return Array(repeating: Color(hex: 0xD3D3D3), count: 4)
+            // Steady / neutral - use neutral colors half-mixed with white
+            return Self.neutralColorHex.map { halfMixWithWhite($0) }
         }
     }
 
     var body: some View {
+        
         TabView {
             // Page 1: Mood page
             moodPage
@@ -152,10 +159,13 @@ struct ContentView: View {
 
     // Page 1: Centered mood text
     private var moodPage: some View {
+        
         NavigationStack {
             ZStack {
                 // Animated gradient background
                 animatedGradientBackground
+
+
 
                 VStack {
                     Spacer()
@@ -217,9 +227,23 @@ struct ContentView: View {
                     Spacer()
                 }
             }
+            .modifier(RippleEffect(
+                at: CGPoint(x: 200, y: 400),
+                trigger: rippleTrigger,
+                amplitude: -22,
+                frequency: 15,
+                decay: 4,
+                speed: 600
+            ))
+
         }
         .refreshable {
             await viewModel.loadQuotes(for: appState.favoriteSymbols)
+        }
+        .onChange(of: viewModel.mood) { _, newMood in
+            if newMood != nil {
+                rippleTrigger = UUID()
+            }
         }
         .onAppear {
             // Initialize random gradient centers and velocities if not already set
@@ -240,11 +264,17 @@ struct ContentView: View {
                     updateGradientCenters()
                 }
             }
+            
+            // Trigger ripple on appear if mood is already present
+            if viewModel.mood != nil {
+                rippleTrigger = UUID()
+            }
         }
         .onDisappear {
             animationTimer?.invalidate()
             animationTimer = nil
         }
+
     }
 
     // Page 2: Quotes list
@@ -639,6 +669,33 @@ struct ContentView: View {
                 ),  // +4.35%
             ],
             initialMood: "The market is euphoric with strong gains."
+        )
+    )
+    .environmentObject(AppState())
+}
+
+// Preview: Market Neutral (-0.5% to +0.5%)
+#Preview("Market Neutral") {
+    ContentView(
+        viewModel: MarketMoodViewModel(
+            initialQuotes: [
+                MarketQuote(
+                    symbol: "SPY",
+                    price: 449.00,
+                    previousClose: 448.00
+                ),  // +0.22%
+                MarketQuote(
+                    symbol: "QQQ",
+                    price: 378.50,
+                    previousClose: 379.00
+                ),  // -0.13%
+                MarketQuote(
+                    symbol: "DIA",
+                    price: 347.00,
+                    previousClose: 346.50
+                ),  // +0.14%
+            ],
+            initialMood: "The market is holding steady, waiting for direction."
         )
     )
     .environmentObject(AppState())
