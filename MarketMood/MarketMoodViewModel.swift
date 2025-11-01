@@ -47,7 +47,7 @@ final class MarketMoodViewModel: ObservableObject {
         )
     }
 
-    func loadQuotes() async {
+    func loadQuotes(for symbols: [String] = []) async {
         guard !isLoading else { return }
 
         isLoading = true
@@ -55,7 +55,13 @@ final class MarketMoodViewModel: ObservableObject {
         mood = nil
 
         do {
-            let fetchedQuotes = try await dataService.fetchQuotes()
+            // Use provided symbols or let dataService use defaults
+            let fetchedQuotes: [MarketQuote]
+            if symbols.isEmpty {
+                fetchedQuotes = try await dataService.fetchQuotes()
+            } else {
+                fetchedQuotes = try await dataService.fetchQuotes(for: symbols)
+            }
             print("🔍 DEBUG - Successfully fetched \(fetchedQuotes.count) quotes")
             quotes = fetchedQuotes
             
@@ -118,6 +124,8 @@ final class MarketMoodViewModel: ObservableObject {
         
         The sentence should be funny and entertaining, like "The market has a major hangover today from last week's binging" or similar humorous observations. 
         Keep it to one sentence, be creative, and make it reflect the overall market sentiment while noting any interesting individual stock performance if relevant.
+        
+        Refer to stocks by their common name, e.g. DJI as "the Dow", or MSFT as "Microsoft"
         """
         
         print("🔍 DEBUG - Generating mood with prompt (length: \(prompt.count) characters)")
