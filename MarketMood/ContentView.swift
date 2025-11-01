@@ -108,75 +108,100 @@ struct ContentView: View {
     }
 
     var body: some View {
-       NavigationStack {
-            TabView {
-                // Page 1: Mood page
-                moodPage
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button(action: {
-                                showAddDialog = true
-                            }) {
-                                Label("Info", systemImage: "info")
-                            }
+        TabView {
+            // Page 1: Mood page
+            moodPage
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            showAddDialog = true
+                        }) {
+                            Label("Info", systemImage: "info")
                         }
                     }
-                        
-
-                // Page 2: Quotes page
-                quotesPage
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            EditButton()
-                        }
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button(action: {
-                                showAddDialog = true
-                            }) {
-                                Label("Add Stock", systemImage: "plus")
-                            }
-                        }
-                    }
-            }
-            .tabViewStyle(.page)
-
-            // .navigationTitle("Market Mood")
-            .task {
-                // Only fetch if we have no quotes at all
-                // Previews with hardcoded data already have quotes, so they won't trigger this
-                if viewModel.quotes.isEmpty {
-                    await viewModel.loadQuotes(for: appState.favoriteSymbols)
                 }
+                
+
+            // Page 2: Quotes page
+            quotesPage
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        EditButton()
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            showAddDialog = true
+                        }) {
+                            Label("Add Stock", systemImage: "plus")
+                        }
+                    }
+                }
+        }
+        .tabViewStyle(.page)
+
+        // .navigationTitle("Market Mood")
+        .task {
+            // Only fetch if we have no quotes at all
+            // Previews with hardcoded data already have quotes, so they won't trigger this
+            if viewModel.quotes.isEmpty {
+                await viewModel.loadQuotes(for: appState.favoriteSymbols)
             }
-            .ignoresSafeArea()/// do not erase!
-       }
+        }
+        .ignoresSafeArea()/// do not erase!
     }
 
     // Page 1: Centered mood text
     private var moodPage: some View {
-        ZStack {
-            // Animated gradient background
-            animatedGradientBackground
+        NavigationStack {
+            ZStack {
+                // Animated gradient background
+                animatedGradientBackground
 
-            VStack {
-                Spacer()
+                VStack {
+                    Spacer()
 
-                if let mood = viewModel.mood {
-                   
-                    let now = Date()
-                    let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
-                    Text(mood)
-                        .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 32)
-                    Text("\n\(dayOnly)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if let mood = viewModel.mood {
+                       
+                        let now = Date()
+                        let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
+                        Text(mood)
+                            .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 32)
+                        Text("\n\(dayOnly)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
 
-                } else if let errorMessage = viewModel.errorMessage {
-                    VStack(spacing: 16) {
-                        Text(errorMessage)
+                    } else if let errorMessage = viewModel.errorMessage {
+                        VStack(spacing: 16) {
+                            Text(errorMessage)
+                                .font(
+                                    .system(
+                                        size: 22,
+                                        weight: .regular,
+                                        design: .default
+                                    )
+                                )
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.red)
+                                .padding(.horizontal, 32)
+
+                            Button {
+                                Task {
+                                    await viewModel.loadQuotes(
+                                        for: appState.favoriteSymbols
+                                    )
+                                }
+                            } label: {
+                                Label("Retry", systemImage: "arrow.clockwise")
+                            }
+                        }
+                    } else if viewModel.isLoading {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                    } else {
+                        Text("Pull to refresh to load market mood")
                             .font(
                                 .system(
                                     size: 22,
@@ -184,38 +209,13 @@ struct ContentView: View {
                                     design: .default
                                 )
                             )
+                            .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                            .foregroundStyle(.red)
                             .padding(.horizontal, 32)
-
-                        Button {
-                            Task {
-                                await viewModel.loadQuotes(
-                                    for: appState.favoriteSymbols
-                                )
-                            }
-                        } label: {
-                            Label("Retry", systemImage: "arrow.clockwise")
-                        }
                     }
-                } else if viewModel.isLoading {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                } else {
-                    Text("Pull to refresh to load market mood")
-                        .font(
-                            .system(
-                                size: 22,
-                                weight: .regular,
-                                design: .default
-                            )
-                        )
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
 
-                Spacer()
+                    Spacer()
+                }
             }
         }
         .refreshable {
@@ -249,40 +249,54 @@ struct ContentView: View {
 
     // Page 2: Quotes list
     private var quotesPage: some View {
-        ZStack {
-            // Animated gradient background
-            animatedGradientBackground
+        NavigationStack {
+            ZStack {
+                // Animated gradient background
+                animatedGradientBackground
 
-            // Quotes list
-            VStack {
-                Spacer()
-                List {
-                    // Blank space via a header spacer
-                    Section(header:
-                        // Adjust height to taste
-                        Color.clear
-                            .frame(height: 50)
-                    ) {
-                        // Keep section empty to only create space
-                    }
-                    Section("Quotes") {
-                        if viewModel.quotes.isEmpty {
-                            if viewModel.isLoading {
-                                loadingRow
+                // Quotes list
+                VStack {
+                    Spacer()
+                    List {
+                        // Blank space via a header spacer
+                        Section(header:
+                            // Adjust height to taste
+                            Color.clear
+                                .frame(height: 50)
+                        ) {
+                            // Keep section empty to only create space
+                        }
+                        Section("Quotes") {
+                            if viewModel.quotes.isEmpty {
+                                if viewModel.isLoading {
+                                    loadingRow
+                                } else {
+                                    placeholderRow
+                                }
                             } else {
-                                placeholderRow
+                                ForEach(viewModel.quotes) { quote in
+                                    quoteRow(quote)
+                                }
+                                .onDelete(perform: deleteQuotes)
                             }
-                        } else {
-                            ForEach(viewModel.quotes) { quote in
-                                quoteRow(quote)
-                            }
-                            .onDelete(perform: deleteQuotes)
                         }
                     }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            EditButton()
+                        }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button(action: {
+                                showAddDialog = true
+                            }) {
+                                Label("Add Stock", systemImage: "plus")
+                            }
+                        }
+                    }
+      
                 }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
-  
             }
         }
         .refreshable {
