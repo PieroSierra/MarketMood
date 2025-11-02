@@ -35,14 +35,25 @@ enum MarketDataError: Error {
 }
 
 struct MarketDataService {
-    private let baseURL = URL(string: "https://www.alphavantage.co/query")!
-    private let apiKey = "FJY3KQ4JO44PVJVG"
+    private let baseURL = URL(string: "https://financialmodelingprep.com")!
+    private let apiKey: String
     private let logger = Logger(subsystem: "com.marketmood", category: "MarketDataService")
+    
+    init() {
+        // Try to get API key from Info.plist first
+        if let apiKey = Bundle.main.infoDictionary?["API_KEY"] as? String {
+            self.apiKey = apiKey
+        } else {
+            // Fallback: Use hardcoded key for now (in production, this should be in a secure config)
+            self.apiKey = "jSidYa38QniqVGfDASVPuiAB1OIaM1kl"
+            logger.warning("API_KEY not found in Info.plist, using fallback")
+        }
+    }
 
     func fetchQuotes(for symbols: [String] = ["SPY", "QQQ", "DIA"]) async throws -> [MarketQuote] {
         print("🔍 DEBUG - Fetching quotes for symbols: \(symbols.joined(separator: ", "))")
         
-        // Alpha Vantage GLOBAL_QUOTE only accepts one symbol at a time, so fetch them in parallel
+        // FMP /quote accepts one symbol at a time, so fetch them in parallel
         return try await withThrowingTaskGroup(of: (String, Result<MarketQuote, Error>).self) { group in
             for symbol in symbols {
                 group.addTask {
@@ -149,13 +160,11 @@ struct MarketDataService {
         }
         
         // Debug: Try to decode and log success
-        let decoded: AlphaVantageQuoteResponse
+        let decoded: [FMPQuote]
         do {
-            decoded = try JSONDecoder().decode(AlphaVantageQuoteResponse.self, from: data)
+            decoded = try JSONDecoder().decode([FMPQuote].self, from: data)
             print("🔍 DEBUG - Successfully decoded JSON response for \(symbol)")
-            print("🔍 DEBUG - decoded.globalQuote is nil: \(decoded.globalQuote == nil)")
-            print("🔍 DEBUG - decoded.errorMessage: \(decoded.errorMessage ?? "nil")")
-            print("🔍 DEBUG - decoded.note: \(decoded.note ?? "nil")")
+            print("🔍 DEBUG - Decoded array length: \(decoded.count)")
         } catch {
             // Log the raw response if decoding fails
             if let responseString = String(data: data, encoding: .utf8) {
@@ -165,42 +174,25 @@ struct MarketDataService {
             throw error
         }
         
-        guard let globalQuote = decoded.globalQuote else {
-            // Check for API error messages, notes, and rate limit information
-            if let information = decoded.information {
-                print("🔍 DEBUG - Alpha Vantage API information (rate limit?): \(information)")
-                logger.warning("Alpha Vantage API information for \(symbol): \(information)")
-                // Rate limit hit - this is a recoverable error, but we still can't provide data
-                throw MarketDataError.missingQuote(symbol: symbol)
-            }
-            if let errorMessage = decoded.errorMessage {
-                print("🔍 DEBUG - Alpha Vantage API error message: \(errorMessage)")
-                logger.error("Alpha Vantage API error for \(symbol): \(errorMessage)")
-            }
-            if let note = decoded.note {
-                print("🔍 DEBUG - Alpha Vantage API note: \(note)")
-                logger.warning("Alpha Vantage API note for \(symbol): \(note)")
-            }
-            print("🔍 DEBUG - globalQuote is nil for \(symbol), throwing missingQuote error")
-            logger.warning("Missing Global Quote data for symbol: \(symbol)")
+        guard let quote = decoded.first else {
+            print("🔍 DEBUG - Empty array returned for \(symbol), throwing missingQuote error")
+            logger.warning("Empty response array for symbol: \(symbol)")
             throw MarketDataError.missingQuote(symbol: symbol)
         }
         
-        print("🔍 DEBUG - globalQuote found for \(symbol): symbol=\(globalQuote.symbol ?? "nil"), price=\(globalQuote.price ?? "nil"), previousClose=\(globalQuote.previousClose ?? "nil")")
+        print("🔍 DEBUG - quote found for \(symbol): symbol=\(quote.symbol), price=\(quote.price), previousClose=\(quote.previousClose)")
 
-        guard let priceString = globalQuote.price,
-              let price = Double(priceString) else {
+        guard let price = quote.price else {
             logger.warning("Missing or invalid price for symbol: \(symbol)")
             throw MarketDataError.missingQuote(symbol: symbol)
         }
 
-        guard let previousCloseString = globalQuote.previousClose,
-              let previousClose = Double(previousCloseString) else {
+        guard let previousClose = quote.previousClose else {
             logger.warning("Missing or invalid previous close for symbol: \(symbol)")
             throw MarketDataError.missingPreviousClose(symbol: symbol)
         }
 
-        let returnedSymbol = globalQuote.symbol ?? symbol
+        let returnedSymbol = quote.symbol ?? symbol
         let quoteResult = MarketQuote(symbol: returnedSymbol, price: price, previousClose: previousClose)
         print("🔍 DEBUG - Parsed quote: \(symbol) -> returned symbol: '\(returnedSymbol)' = $\(price) (prev: $\(previousClose))")
         return quoteResult
@@ -208,8 +200,8 @@ struct MarketDataService {
 
     private func url(for symbol: String) -> URL? {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.path = "/stable/quote"
         components?.queryItems = [
-            URLQueryItem(name: "function", value: "GLOBAL_QUOTE"),
             URLQueryItem(name: "symbol", value: symbol),
             URLQueryItem(name: "apikey", value: apiKey)
         ]
@@ -218,29 +210,27 @@ struct MarketDataService {
     }
 }
 
-// Alpha Vantage GLOBAL_QUOTE response structure
-private struct AlphaVantageQuoteResponse: Decodable {
-    let globalQuote: GlobalQuote?
-    let errorMessage: String?
-    let note: String?
-    let information: String?  // Rate limit messages
+// Financial Modeling Prep Quote response structure
+private struct FMPQuote: Decodable {
+    let symbol: String?
+    let name: String?
+    let price: Double?
+    let changePercentage: Double?
+    let change: Double?
+    let volume: Int64?
+    let dayLow: Double?
+    let dayHigh: Double?
+    let yearHigh: Double?
+    let yearLow: Double?
+    let marketCap: Int64?
+    let priceAvg50: Double?
+    let priceAvg200: Double?
+    let exchange: String?
+    let open: Double?
+    let previousClose: Double?
+    let timestamp: Int64?
     
     enum CodingKeys: String, CodingKey {
-        case globalQuote = "Global Quote"
-        case errorMessage = "Error Message"
-        case note = "Note"
-        case information = "Information"
-    }
-    
-    struct GlobalQuote: Decodable {
-        let symbol: String?
-        let price: String?
-        let previousClose: String?
-        
-        enum CodingKeys: String, CodingKey {
-            case symbol = "01. symbol"
-            case price = "05. price"
-            case previousClose = "08. previous close"
-        }
+        case symbol, name, price, changePercentage, change, volume, dayLow, dayHigh, yearHigh, yearLow, marketCap, priceAvg50, priceAvg200, exchange, open, previousClose, timestamp
     }
 }
