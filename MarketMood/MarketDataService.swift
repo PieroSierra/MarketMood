@@ -10,6 +10,7 @@ import OSLog
 
 struct MarketQuote: Identifiable, Equatable {
     let symbol: String
+    let name: String?
     let price: Double
     let previousClose: Double
 
@@ -36,21 +37,29 @@ enum MarketDataError: Error {
 
 struct MarketDataService {
     private let baseURL = URL(string: "https://financialmodelingprep.com")!
-    private let apiKey: String
+    private let apiKey: String?
     private let logger = Logger(subsystem: "com.marketmood", category: "MarketDataService")
     
     init() {
-        // Try to get API key from Info.plist first
-        if let apiKey = Bundle.main.infoDictionary?["API_KEY"] as? String {
-            self.apiKey = apiKey
-        } else {
-            // Fallback: Use hardcoded key for now (in production, this should be in a secure config)
-            self.apiKey = "jSidYa38QniqVGfDASVPuiAB1OIaM1kl"
-            logger.warning("API_KEY not found in Info.plist, using fallback")
+        // Get API key from Info.plist (which should be populated from Config.xcconfig via build settings)
+        // For previews, this may be nil, which is fine since previews use hardcoded data
+        self.apiKey = Bundle.main.infoDictionary?["API_KEY"] as? String
+        if apiKey == nil || apiKey?.isEmpty == true {
+            logger.warning("API_KEY not found in Info.plist. This is OK for previews, but will cause failures in production builds.")
         }
     }
-
+    
+    private func validateAPIKey() {
+        guard let apiKey = apiKey, !apiKey.isEmpty else {
+            logger.error("API_KEY not found in Info.plist. Make sure Config.xcconfig is properly configured and INFOPLIST_KEY_API_KEY = $(API_KEY) is set in build settings.")
+            fatalError("API_KEY must be configured. Ensure Config.xcconfig contains API_KEY and build settings map it to INFOPLIST_KEY_API_KEY.")
+        }
+    }
+    
     func fetchQuotes(for symbols: [String] = ["SPY", "QQQ", "DIA"]) async throws -> [MarketQuote] {
+        // Validate API key before making network requests
+        validateAPIKey()
+        
         print("🔍 DEBUG - Fetching quotes for symbols: \(symbols.joined(separator: ", "))")
         
         // FMP /quote accepts one symbol at a time, so fetch them in parallel
@@ -193,12 +202,16 @@ struct MarketDataService {
         }
 
         let returnedSymbol = quote.symbol ?? symbol
-        let quoteResult = MarketQuote(symbol: returnedSymbol, price: price, previousClose: previousClose)
-        print("🔍 DEBUG - Parsed quote: \(symbol) -> returned symbol: '\(returnedSymbol)' = $\(price) (prev: $\(previousClose))")
+        let quoteResult = MarketQuote(symbol: returnedSymbol, name: quote.name, price: price, previousClose: previousClose)
+        print("🔍 DEBUG - Parsed quote: \(symbol) -> returned symbol: '\(returnedSymbol)' name: '\(quote.name ?? "nil")' = $\(price) (prev: $\(previousClose))")
         return quoteResult
     }
 
     private func url(for symbol: String) -> URL? {
+        guard let apiKey = apiKey else {
+            logger.error("API_KEY is nil when trying to build URL")
+            return nil
+        }
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         components?.path = "/stable/quote"
         components?.queryItems = [

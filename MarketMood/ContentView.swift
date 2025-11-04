@@ -36,6 +36,10 @@ struct ContentView: View {
     
     // Ripple effect trigger
     @State private var rippleTrigger = UUID()
+    @State private var rippleCenter = CGPoint(x: 200, y: 400)
+    
+    // Track initial load state
+    @State private var hasCompletedInitialLoad = false
 
     // Define 8 complementary colors as hex values
     // Good market colors: green, blue, yellow, aquamarine
@@ -81,13 +85,14 @@ struct ContentView: View {
 
     // Determine gradient colors based on market state - returns 4 colors
     private var gradientColors: [Color] {
-        if viewModel.errorMessage != nil || viewModel.quotes.isEmpty {
-            // No data or error - white to light gray
-            return Array(repeating: Color(hex: 0xD3D3D3), count: 4)
+        // Show neutral colors during initial load or when no data
+        if !hasCompletedInitialLoad || viewModel.errorMessage != nil || viewModel.quotes.isEmpty {
+            // No data or initial load - use neutral colors half-mixed with white
+            return Self.neutralColorHex.map { halfMixWithWhite($0) }
         }
 
         guard !viewModel.quotes.isEmpty else {
-            return Array(repeating: Color(hex: 0xD3D3D3), count: 4)
+            return Self.neutralColorHex.map { halfMixWithWhite($0) }
         }
 
         let averageChange =
@@ -148,10 +153,17 @@ struct ContentView: View {
 
         // .navigationTitle("Market Mood")
         .task {
-            // Only fetch if we have no quotes at all
+            // Only fetch if we have no quotes at all (initial load)
             // Previews with hardcoded data already have quotes, so they won't trigger this
             if viewModel.quotes.isEmpty {
-                await viewModel.loadQuotes(for: appState.favoriteSymbols)
+                await viewModel.loadQuotes(for: appState.favoriteSymbols, regenerateMood: true)
+                // Mark initial load as complete after loading
+                if !viewModel.quotes.isEmpty || viewModel.errorMessage != nil {
+                    hasCompletedInitialLoad = true
+                }
+            } else {
+                // If we already have quotes (e.g., from preview), mark as completed
+                hasCompletedInitialLoad = true
             }
         }
         .ignoresSafeArea()/// do not erase!
@@ -165,12 +177,17 @@ struct ContentView: View {
                 // Animated gradient background
                 animatedGradientBackground
 
-
-
                 VStack {
                     Spacer()
 
-                    if let mood = viewModel.mood {
+                    if !hasCompletedInitialLoad && viewModel.isLoading {
+                        // Show loading text during initial load
+                        Text("Analyzing quotes...")
+                            .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 32)
+                    } else if let mood = viewModel.mood {
                        
                         let now = Date()
                         let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
@@ -200,7 +217,8 @@ struct ContentView: View {
                             Button {
                                 Task {
                                     await viewModel.loadQuotes(
-                                        for: appState.favoriteSymbols
+                                        for: appState.favoriteSymbols,
+                                        regenerateMood: true
                                     )
                                 }
                             } label: {
@@ -228,20 +246,39 @@ struct ContentView: View {
                 }
             }
             .modifier(RippleEffect(
-                at: CGPoint(x: 200, y: 400),
+                at: rippleCenter,
                 trigger: rippleTrigger,
                 amplitude: -22,
                 frequency: 15,
                 decay: 4,
                 speed: 600
             ))
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onEnded { value in
+                        // Update ripple center to tap location and trigger animation
+                        rippleCenter = value.location
+                        rippleTrigger = UUID()
+                    }
+            )
 
         }
         .refreshable {
-            await viewModel.loadQuotes(for: appState.favoriteSymbols)
+            await viewModel.loadQuotes(for: appState.favoriteSymbols, regenerateMood: true)
         }
         .onChange(of: viewModel.mood) { _, newMood in
-            if newMood != nil {
+            // Only trigger ripple after initial load completes and when mood changes
+            if hasCompletedInitialLoad && newMood != nil {
+                // Center the ripple on initial mood load
+                rippleCenter = CGPoint(x: 200, y: 400)
+                rippleTrigger = UUID()
+            }
+        }
+        .onChange(of: hasCompletedInitialLoad) { _, completed in
+            // Trigger ripple when initial load completes with mood data
+            if completed && viewModel.mood != nil {
+                // Center the ripple on initial load
+                rippleCenter = CGPoint(x: 200, y: 400)
                 rippleTrigger = UUID()
             }
         }
@@ -265,8 +302,11 @@ struct ContentView: View {
                 }
             }
             
-            // Trigger ripple on appear if mood is already present
-            if viewModel.mood != nil {
+            // Trigger ripple on appear if mood is already present and initial load is complete
+            // (This handles page transitions between Quotes and Mood pages)
+            if hasCompletedInitialLoad && viewModel.mood != nil {
+                // Center the ripple on page transition
+                rippleCenter = CGPoint(x: 200, y: 400)
                 rippleTrigger = UUID()
             }
         }
@@ -330,7 +370,8 @@ struct ContentView: View {
             }
         }
         .refreshable {
-            await viewModel.loadQuotes(for: appState.favoriteSymbols)
+            // Regenerate mood when pulling to refresh on quotes page
+            await viewModel.loadQuotes(for: appState.favoriteSymbols, regenerateMood: true)
         }
         .onAppear {
             // Initialize random gradient centers and velocities if not already set
@@ -367,7 +408,8 @@ struct ContentView: View {
                 appState.removeFavorite(symbol)
             }
             Task {
-                await viewModel.loadQuotes(for: appState.favoriteSymbols)
+                // Regenerate mood when deleting quotes
+                await viewModel.loadQuotes(for: appState.favoriteSymbols, regenerateMood: true)
             }
         }
     }
@@ -397,8 +439,10 @@ struct ContentView: View {
                         if !newSymbolText.isEmpty {
                             appState.addFavorite(newSymbolText)
                             Task {
+                                // Regenerate mood when adding quotes
                                 await viewModel.loadQuotes(
-                                    for: appState.favoriteSymbols
+                                    for: appState.favoriteSymbols,
+                                    regenerateMood: true
                                 )
                             }
                             newSymbolText = ""
@@ -581,8 +625,16 @@ struct ContentView: View {
 
     private func quoteRow(_ quote: MarketQuote) -> some View {
         HStack {
-            Text(quote.symbol)
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(quote.symbol)
+                    .font(.headline)
+                if let name = quote.name {
+                    Text(name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 Text(quote.price, format: .currency(code: "USD"))
@@ -591,7 +643,7 @@ struct ContentView: View {
             }
         }
         .accessibilityLabel(
-            "\(quote.symbol) trading at \(quote.price, format: .currency(code: "USD"))"
+            "\(quote.symbol)\(quote.name.map { " \($0)" } ?? "") trading at \(quote.price, format: .currency(code: "USD"))"
         )
     }
 
@@ -627,16 +679,19 @@ struct ContentView: View {
             initialQuotes: [
                 MarketQuote(
                     symbol: "SPY",
+                    name: "SPDR S&P 500 ETF Trust",
                     price: 450.00,
                     previousClose: 446.50
                 ),  // +0.78%
                 MarketQuote(
                     symbol: "QQQ",
+                    name: "Invesco QQQ Trust",
                     price: 380.00,
                     previousClose: 377.50
                 ),  // +0.66%
                 MarketQuote(
                     symbol: "DIA",
+                    name: "SPDR Dow Jones Industrial Average ETF",
                     price: 350.00,
                     previousClose: 347.50
                 ),  // +0.72%
@@ -654,16 +709,19 @@ struct ContentView: View {
             initialQuotes: [
                 MarketQuote(
                     symbol: "SPY",
+                    name: "SPDR S&P 500 ETF Trust",
                     price: 460.00,
                     previousClose: 445.00
                 ),  // +3.37%
                 MarketQuote(
                     symbol: "QQQ",
+                    name: "Invesco QQQ Trust",
                     price: 390.00,
                     previousClose: 375.00
                 ),  // +4.00%
                 MarketQuote(
                     symbol: "DIA",
+                    name: "SPDR Dow Jones Industrial Average ETF",
                     price: 360.00,
                     previousClose: 345.00
                 ),  // +4.35%
@@ -681,16 +739,19 @@ struct ContentView: View {
             initialQuotes: [
                 MarketQuote(
                     symbol: "SPY",
+                    name: "SPDR S&P 500 ETF Trust",
                     price: 449.00,
                     previousClose: 448.00
                 ),  // +0.22%
                 MarketQuote(
                     symbol: "QQQ",
+                    name: "Invesco QQQ Trust",
                     price: 378.50,
                     previousClose: 379.00
                 ),  // -0.13%
                 MarketQuote(
                     symbol: "DIA",
+                    name: "SPDR Dow Jones Industrial Average ETF",
                     price: 347.00,
                     previousClose: 346.50
                 ),  // +0.14%
@@ -708,16 +769,19 @@ struct ContentView: View {
             initialQuotes: [
                 MarketQuote(
                     symbol: "SPY",
+                    name: "SPDR S&P 500 ETF Trust",
                     price: 443.00,
                     previousClose: 446.50
                 ),  // -0.78%
                 MarketQuote(
                     symbol: "QQQ",
+                    name: "Invesco QQQ Trust",
                     price: 374.50,
                     previousClose: 377.50
                 ),  // -0.79%
                 MarketQuote(
                     symbol: "DIA",
+                    name: "SPDR Dow Jones Industrial Average ETF",
                     price: 345.00,
                     previousClose: 347.50
                 ),  // -0.72%
@@ -735,16 +799,19 @@ struct ContentView: View {
             initialQuotes: [
                 MarketQuote(
                     symbol: "SPY",
+                    name: "SPDR S&P 500 ETF Trust",
                     price: 435.00,
                     previousClose: 450.00
                 ),  // -3.33%
                 MarketQuote(
                     symbol: "QQQ",
+                    name: "Invesco QQQ Trust",
                     price: 360.00,
                     previousClose: 375.00
                 ),  // -4.00%
                 MarketQuote(
                     symbol: "DIA",
+                    name: "SPDR Dow Jones Industrial Average ETF",
                     price: 335.00,
                     previousClose: 350.00
                 ),  // -4.29%

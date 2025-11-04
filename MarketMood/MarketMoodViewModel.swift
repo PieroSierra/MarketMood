@@ -47,12 +47,16 @@ final class MarketMoodViewModel: ObservableObject {
         )
     }
 
-    func loadQuotes(for symbols: [String] = []) async {
+    func loadQuotes(for symbols: [String] = [], regenerateMood: Bool = false) async {
         guard !isLoading else { return }
 
         isLoading = true
         errorMessage = nil
-        mood = nil
+        
+        // Only clear mood if we're regenerating it
+        if regenerateMood {
+            mood = nil
+        }
 
         do {
             // Use provided symbols or let dataService use defaults
@@ -65,23 +69,29 @@ final class MarketMoodViewModel: ObservableObject {
             print("🔍 DEBUG - Successfully fetched \(fetchedQuotes.count) quotes")
             quotes = fetchedQuotes
             
-            // Try to generate mood with LLM, fallback to simple case statement if it fails
-            do {
-                mood = try await generateMood(from: fetchedQuotes)
-                print("🔍 DEBUG - Successfully generated mood with LLM: \(mood ?? "nil")")
-            } catch {
-                print("🔍 DEBUG - Failed to generate mood with LLM: \(error)")
-                print("🔍 DEBUG - Error details: \(error.localizedDescription)")
-                // Fallback to simple case-statement approach if LLM fails
-                mood = makeMood(from: fetchedQuotes)
-                print("🔍 DEBUG - Using fallback mood: \(mood ?? "nil")")
+            // Only regenerate mood if requested
+            if regenerateMood {
+                // Try to generate mood with LLM, fallback to simple case statement if it fails
+                do {
+                    mood = try await generateMood(from: fetchedQuotes)
+                    print("🔍 DEBUG - Successfully generated mood with LLM: \(mood ?? "nil")")
+                } catch {
+                    print("🔍 DEBUG - Failed to generate mood with LLM: \(error)")
+                    print("🔍 DEBUG - Error details: \(error.localizedDescription)")
+                    // Fallback to simple case-statement approach if LLM fails
+                    mood = makeMood(from: fetchedQuotes)
+                    print("🔍 DEBUG - Using fallback mood: \(mood ?? "nil")")
+                }
             }
         } catch {
             print("🔍 DEBUG - Failed to fetch quotes: \(error)")
             print("🔍 DEBUG - Error details: \(error.localizedDescription)")
             quotes = []
             errorMessage = message(for: error)
-            mood = nil
+            // Only clear mood on error if we were regenerating
+            if regenerateMood {
+                mood = nil
+            }
         }
 
         isLoading = false
