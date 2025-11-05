@@ -8,6 +8,61 @@
 import SwiftUI
 import UIKit
 
+// UIKit-based tap gesture recognizer that provides location and allows simultaneous recognition
+struct TapLocationView: UIViewRepresentable {
+    let onTap: (CGPoint) -> Void
+    
+    func makeUIView(context: Context) -> TapLocationUIView {
+        let view = TapLocationUIView()
+        view.onTap = onTap
+        return view
+    }
+    
+    func updateUIView(_ uiView: TapLocationUIView, context: Context) {
+        uiView.onTap = onTap
+    }
+}
+
+class TapLocationUIView: UIView {
+    var onTap: ((CGPoint) -> Void)?
+    
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupTapGesture()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupTapGesture()
+    }
+    
+    private func setupTapGesture() {
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        tapGesture.delegate = self
+        addGestureRecognizer(tapGesture)
+    }
+    
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        let location = gesture.location(in: self)
+        onTap?(location)
+    }
+}
+
+extension TapLocationUIView: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        // Allow simultaneous recognition with TabView's pan gesture
+        return true
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        // Don't require failure of pan gestures (TabView swipes)
+        if otherGestureRecognizer is UIPanGestureRecognizer {
+            return false
+        }
+        return false
+    }
+}
+
 // HEX color code extension
 extension Color {
     init(hex: Int, opacity: Double = 1.0) {
@@ -173,36 +228,64 @@ struct ContentView: View {
     private var moodPage: some View {
         
         NavigationStack {
-            ZStack {
-                // Animated gradient background
-                animatedGradientBackground
+            GeometryReader { geometry in
+                ZStack {
+                    // Animated gradient background
+                    animatedGradientBackground
 
-                VStack {
-                    Spacer()
+                    VStack {
+                        Spacer()
 
-                    if !hasCompletedInitialLoad && viewModel.isLoading {
-                        // Show loading text during initial load
-                        Text("Analyzing quotes...")
-                            .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 32)
-                    } else if let mood = viewModel.mood {
-                       
-                        let now = Date()
-                        let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
-                        Text(mood)
-                            .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 32)
-                        Text("\n\(dayOnly)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        if !hasCompletedInitialLoad && viewModel.isLoading {
+                            // Show loading text during initial load
+                            Text("Analyzing quotes...")
+                                .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 32)
+                        } else if let mood = viewModel.mood {
+                           
+                            let now = Date()
+                            let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
+                            Text(mood)
+                                .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.primary)
+                                .padding(.horizontal, 32)
+                            Text("\n\(dayOnly)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
 
-                    } else if let errorMessage = viewModel.errorMessage {
-                        VStack(spacing: 16) {
-                            Text(errorMessage)
+                        } else if let errorMessage = viewModel.errorMessage {
+                            VStack(spacing: 16) {
+                                Text(errorMessage)
+                                    .font(
+                                        .system(
+                                            size: 22,
+                                            weight: .regular,
+                                            design: .default
+                                        )
+                                    )
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.red)
+                                    .padding(.horizontal, 32)
+
+                                Button {
+                                    Task {
+                                        await viewModel.loadQuotes(
+                                            for: appState.favoriteSymbols,
+                                            regenerateMood: true
+                                        )
+                                    }
+                                } label: {
+                                    Label("Retry", systemImage: "arrow.clockwise")
+                                }
+                            }
+                        } else if viewModel.isLoading {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                        } else {
+                            Text("Pull to refresh to load market mood")
                                 .font(
                                     .system(
                                         size: 22,
@@ -210,57 +293,30 @@ struct ContentView: View {
                                         design: .default
                                     )
                                 )
+                                .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
-                                .foregroundStyle(.red)
                                 .padding(.horizontal, 32)
-
-                            Button {
-                                Task {
-                                    await viewModel.loadQuotes(
-                                        for: appState.favoriteSymbols,
-                                        regenerateMood: true
-                                    )
-                                }
-                            } label: {
-                                Label("Retry", systemImage: "arrow.clockwise")
-                            }
                         }
-                    } else if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                    } else {
-                        Text("Pull to refresh to load market mood")
-                            .font(
-                                .system(
-                                    size: 22,
-                                    weight: .regular,
-                                    design: .default
-                                )
-                            )
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                    }
 
-                    Spacer()
+                        Spacer()
+                    }
                 }
-            }
-            .modifier(RippleEffect(
-                at: rippleCenter,
-                trigger: rippleTrigger,
-                amplitude: -22,
-                frequency: 15,
-                decay: 4,
-                speed: 600
-            ))
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onEnded { value in
-                        // Update ripple center to tap location and trigger animation
-                        rippleCenter = value.location
+                .modifier(RippleEffect(
+                    at: rippleCenter,
+                    trigger: rippleTrigger,
+                    amplitude: -22,
+                    frequency: 15,
+                    decay: 4,
+                    speed: 600
+                ))
+                .overlay {
+                    // UIKit-based tap gesture that allows simultaneous recognition with TabView swipes
+                    TapLocationView { location in
+                        rippleCenter = location
                         rippleTrigger = UUID()
                     }
-            )
+                }
+            }
 
         }
         .refreshable {
