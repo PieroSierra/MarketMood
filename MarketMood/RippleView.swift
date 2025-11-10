@@ -46,12 +46,20 @@ struct RippleModifier: ViewModifier {
 
 struct RippleEffect<T: Equatable>: ViewModifier {
     
+    private struct ActiveRipple: Identifiable {
+        let id = UUID()
+        let origin: CGPoint
+        let startDate: Date
+    }
+    
     var origin: CGPoint
     var trigger: T
     var amplitude: Double
     var frequency: Double
     var decay: Double
     var speed: Double
+    
+    @State private var activeRipples: [ActiveRipple] = []
     
     init(at origin: CGPoint, trigger: T, amplitude: Double = 12, frequency: Double = 15, decay: Double = 8, speed: Double = 1200) {
         self.origin = origin
@@ -63,29 +71,41 @@ struct RippleEffect<T: Equatable>: ViewModifier {
     }
     
     func body(content: Content) -> some View {
-        let origin = origin
-        let duration = duration
-        let amplitude = amplitude
-        let frequency = frequency
-        let decay = decay
-        let speed = speed
-        
-        content.keyframeAnimator(
-            initialValue: 0,
-            trigger: trigger
-        ) { view, elapsedTime in
-            view.modifier(RippleModifier(
-                origin: origin,
-                elapsedTime: elapsedTime,
-                duration: duration,
-                amplitude: amplitude,
-                frequency: frequency,
-                decay: decay,
-                speed: speed
-            ))
-        } keyframes: { _ in
-            MoveKeyframe(0)
-            LinearKeyframe(duration, duration: duration)
+        TimelineView(.animation) { timeline in
+            let now = timeline.date
+            
+            let validRipples = activeRipples.filter { ripple in
+                now.timeIntervalSince(ripple.startDate) < duration
+            }
+            
+            let base = AnyView(content)
+            let rippleView = validRipples.reduce(base) { partialView, ripple in
+                let elapsedTime = now.timeIntervalSince(ripple.startDate)
+                
+                return AnyView(
+                    partialView.modifier(
+                        RippleModifier(
+                            origin: ripple.origin,
+                            elapsedTime: elapsedTime,
+                            duration: duration,
+                            amplitude: amplitude,
+                            frequency: frequency,
+                            decay: decay,
+                            speed: speed
+                        )
+                    )
+                )
+            }
+            
+            rippleView
+        }
+        .onChange(of: trigger) { _, _ in
+            let now = Date()
+            activeRipples = activeRipples.filter { ripple in
+                now.timeIntervalSince(ripple.startDate) < duration
+            }
+            let newRipple = ActiveRipple(origin: origin, startDate: Date())
+            activeRipples.append(newRipple)
         }
     }
     

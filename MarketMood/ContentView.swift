@@ -242,7 +242,7 @@ struct ContentView: View {
 
                         if !hasCompletedInitialLoad && viewModel.isLoading {
                             // Show loading text during initial load
-                            Text("Analyzing quotes...")
+                            Text("Thinking...")
                                 .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
                                 .multilineTextAlignment(.center)
                                 .foregroundStyle(.secondary)
