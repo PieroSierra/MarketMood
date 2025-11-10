@@ -88,6 +88,10 @@ struct ContentView: View {
     // Add stock dialog state
     @State private var showAddDialog = false
     @State private var newSymbolText = ""
+    @State private var searchResults: [StockSearchResult] = []
+    @State private var isSearching = false
+    @State private var searchError: String?
+    @State private var searchTask: Task<Void, Never>?
     
     // Ripple effect trigger
     @State private var rippleTrigger = UUID()
@@ -473,12 +477,58 @@ struct ContentView: View {
     // Add stock dialog
     private var addStockDialog: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                TextField("Stock Symbol", text: $newSymbolText)
+            VStack(spacing: 10) {
+                // Search field
+                TextField("Stock Symbol or Company Name", text: $newSymbolText)
                     .textFieldStyle(.roundedBorder)
-                    .autocapitalization(.allCharacters)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
                     .padding()
-
+                    .onChange(of: newSymbolText) { _, newValue in
+                        performSearch(query: newValue)
+                    }
+                
+                // Search results or loading/error state
+                if isSearching {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Spacer()
+                    }
+                    .padding()
+                } else if let error = searchError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                        .padding()
+                } else if !searchResults.isEmpty {
+                    List(searchResults) { result in
+                        Button {
+                            selectSearchResult(result)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(result.symbol)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text(result.name)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let exchange = result.exchangeFullName ?? result.exchange {
+                                    Text(exchange)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                } else if !newSymbolText.isEmpty && !isSearching {
+                    Text("No results found")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .padding()
+                }
                 Spacer()
             }
             .navigationTitle("Add Stock")
@@ -486,29 +536,98 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        cancelSearch()
                         showAddDialog = false
                         newSymbolText = ""
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        if !newSymbolText.isEmpty {
-                            appState.addFavorite(newSymbolText)
-                            Task {
-                                // Regenerate mood when adding quotes
-                                await viewModel.loadQuotes(
-                                    for: appState.favoriteSymbols,
-                                    regenerateMood: true
-                                )
-                            }
-                            newSymbolText = ""
-                            showAddDialog = false
-                        }
+                        searchResults = []
+                        searchError = nil
                     }
                 }
             }
         }
-        .presentationDetents([.height(200)])
+        .presentationDetents([.medium, .large])
+        .onDisappear {
+            cancelSearch()
+        }
+    }
+    
+    private func performSearch(query: String) {
+        // Cancel previous search task
+        searchTask?.cancel()
+        
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Clear results if query is empty or less than 3 characters
+        guard !trimmedQuery.isEmpty else {
+            searchResults = []
+            searchError = nil
+            isSearching = false
+            return
+        }
+        
+        // Don't search until at least 3 characters are entered
+        guard trimmedQuery.count >= 3 else {
+            searchResults = []
+            searchError = nil
+            isSearching = false
+            return
+        }
+        
+        // Debounce search: wait 0.5 seconds after user stops typing
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // Check if task was cancelled
+            guard !Task.isCancelled else { return }
+            
+            await performSearchRequest(query: trimmedQuery)
+        }
+    }
+    
+    @MainActor
+    private func performSearchRequest(query: String) async {
+        isSearching = true
+        searchError = nil
+        
+        do {
+            let service = MarketDataService()
+            let results = try await service.searchStocks(query: query, limit: 20)
+            
+            // Check if task was cancelled
+            guard !Task.isCancelled else { return }
+            
+            searchResults = results
+            isSearching = false
+        } catch {
+            // Check if task was cancelled
+            guard !Task.isCancelled else { return }
+            
+            searchError = "Search failed: \(error.localizedDescription)"
+            searchResults = []
+            isSearching = false
+        }
+    }
+    
+    private func selectSearchResult(_ result: StockSearchResult) {
+        appState.addFavorite(result.symbol)
+        Task {
+            // Regenerate mood when adding quotes
+            await viewModel.loadQuotes(
+                for: appState.favoriteSymbols,
+                regenerateMood: true
+            )
+        }
+        cancelSearch()
+        showAddDialog = false
+        newSymbolText = ""
+        searchResults = []
+        searchError = nil
+    }
+    
+    private func cancelSearch() {
+        searchTask?.cancel()
+        searchTask = nil
+        isSearching = false
     }
 
     // Initialize random gradient center positions and velocities

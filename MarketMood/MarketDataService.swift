@@ -28,6 +28,16 @@ struct MarketQuote: Identifiable, Equatable {
     }
 }
 
+struct StockSearchResult: Identifiable, Equatable {
+    let symbol: String
+    let name: String
+    let currency: String?
+    let exchange: String?
+    let exchangeFullName: String?
+    
+    var id: String { symbol }
+}
+
 enum MarketDataError: Error {
     case invalidURL
     case invalidResponse(statusCode: Int)
@@ -204,11 +214,67 @@ struct MarketDataService {
         return quoteResult
     }
 
+    func searchStocks(query: String, limit: Int = 50) async throws -> [StockSearchResult] {
+        validateAPIKey()
+        
+        guard let url = searchURL(query: query, limit: limit) else {
+            logger.error("Failed to generate search URL for query: \(query)")
+            throw MarketDataError.invalidURL
+        }
+        
+        logger.info("Searching stocks with query: \(query)")
+        
+        let request = URLRequest(url: url)
+        
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            logger.error("Search request failed for \(query): \(error.localizedDescription)")
+            throw error
+        }
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            if !(200..<300).contains(httpResponse.statusCode) {
+                logger.error("Search API returned error status: \(httpResponse.statusCode)")
+                throw MarketDataError.invalidResponse(statusCode: httpResponse.statusCode)
+            }
+        }
+        
+        do {
+            let results = try JSONDecoder().decode([FMPSearchResult].self, from: data)
+            return results.map { result in
+                StockSearchResult(
+                    symbol: result.symbol,
+                    name: result.name,
+                    currency: result.currency,
+                    exchange: result.exchange,
+                    exchangeFullName: result.exchangeFullName
+                )
+            }
+        } catch {
+            logger.error("Failed to decode search results: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
     private func url(for symbol: String) -> URL? {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         components?.path = "/stable/quote"
         components?.queryItems = [
             URLQueryItem(name: "symbol", value: symbol),
+            URLQueryItem(name: "apikey", value: apiKey)
+        ]
+
+        return components?.url
+    }
+    
+    private func searchURL(query: String, limit: Int = 50) -> URL? {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.path = "/stable/search-name"
+        components?.queryItems = [
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "apikey", value: apiKey)
         ]
 
@@ -239,4 +305,13 @@ private struct FMPQuote: Decodable {
     enum CodingKeys: String, CodingKey {
         case symbol, name, price, changePercentage, change, volume, dayLow, dayHigh, yearHigh, yearLow, marketCap, priceAvg50, priceAvg200, exchange, open, previousClose, timestamp
     }
+}
+
+// Financial Modeling Prep Search response structure
+private struct FMPSearchResult: Decodable {
+    let symbol: String
+    let name: String
+    let currency: String?
+    let exchange: String?
+    let exchangeFullName: String?
 }
