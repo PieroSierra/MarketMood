@@ -73,7 +73,8 @@ final class MarketMoodViewModel: ObservableObject {
             if regenerateMood {
                 // Try to generate mood with LLM, fallback to simple case statement if it fails
                 do {
-                    mood = try await generateMood(from: fetchedQuotes)
+                    let symbolsToUse = symbols.isEmpty ? ["SPY", "QQQ", "DIA"] : symbols
+                    mood = try await generateMood(from: fetchedQuotes, symbols: symbolsToUse)
                     print("🔍 DEBUG - Successfully generated mood with LLM: \(mood ?? "nil")")
                 } catch {
                     print("🔍 DEBUG - Failed to generate mood with LLM: \(error)")
@@ -112,33 +113,93 @@ final class MarketMoodViewModel: ObservableObject {
         }
     }
 
-    private func generateMood(from quotes: [MarketQuote]) async throws -> String? {
+    private func generateMood(from quotes: [MarketQuote], symbols: [String]) async throws -> String? {
         guard !quotes.isEmpty else { return nil }
 
-        let averageChange = quotes.map(\.changePercent).reduce(0, +) / Double(quotes.count)
+        // Determine if this is the default market set
+        let defaultSymbols = Set(["SPY", "QQQ", "DIA"])
+        let trackedSymbols = Set(symbols.map { $0.uppercased() })
+        let isDefaultSet = trackedSymbols.isSuperset(of: defaultSymbols) && trackedSymbols.count == defaultSymbols.count
+        let scopeLabel = isDefaultSet ? "the market" : "your stocks"
         
-        // Build a description of individual quote changes
-        let individualChanges = quotes.map { quote in
-            let percentStr = quote.changePercent.formatted(.percent.precision(.fractionLength(2)))
-            let direction = quote.changePercent >= 0 ? "up" : "down"
-            return "\(quote.symbol) is \(direction) \(percentStr)"
-        }.joined(separator: ", ")
+        // Calculate overall change percentage
+        let overallChangePct = quotes.map(\.changePercent).reduce(0, +) / Double(quotes.count)
         
-        // Create the prompt for the LLM
-        let prompt = """
-        Write a humorous, witty sentence about the stock market's mood today. 
+        // Count up and down movers
+        let numUp = quotes.filter { $0.changePercent > 0 }.count
+        let numDown = quotes.filter { $0.changePercent < 0 }.count
+        let total = quotes.count
         
-        Here's the context:
-        - Average market change: \(averageChange.formatted(.percent.precision(.fractionLength(2))))
-        - Individual changes: \(individualChanges)
+        // Find notable movers (top 2 by absolute percentage change, with threshold)
+        let absThreshold = 0.025 // 2.5%
+        let notableMovers = quotes
+            .filter { abs($0.changePercent) >= absThreshold }
+            .sorted { abs($0.changePercent) > abs($1.changePercent) }
+            .prefix(2)
+            .map { quote in
+                let displayName = commonName(for: quote.symbol) ?? quote.name ?? quote.symbol
+                return (name: displayName, pct: quote.changePercent)
+            }
         
-        The sentence should be funny and entertaining, like "The market has a major hangover today from last week's binging" or similar humorous observations. 
-        Keep it to one sentence, be creative, and make it reflect the overall market sentiment while noting any interesting individual stock performance if relevant.
+        // Build notable movers JSON array
+        let notableMoversJSON: String
+        if notableMovers.isEmpty {
+            notableMoversJSON = "[]"
+        } else {
+            let moversArray = notableMovers.map { mover in
+                let sign = mover.pct >= 0 ? "+" : ""
+                // Escape quotes in the name for JSON safety
+                let escapedName = mover.name.replacingOccurrences(of: "\"", with: "\\\"")
+                return "{\"name\":\"\(escapedName)\",\"pct\":\(sign)\(String(format: "%.2f", mover.pct * 100))}"
+            }.joined(separator: ",")
+            notableMoversJSON = "[\(moversArray)]"
+        }
         
-        Refer to stocks by their common name, e.g. DJI as "the Dow", or MSFT as "Microsoft"
+        // Create the improved prompt following the suggestions
+        let systemPrompt = """
+        You write one short, witty line that reflects the day's mood for a set of stocks or indices.
+        
+        Priorities: (1) correct sentiment; (2) concise; (3) lightly witty phrasing—no forced jokes or anthropomorphizing.
+        
+        Never enumerate all tickers. At most, call out one or two unusually large movers.
+        
+        Prefer "your stocks" if the user is tracking a custom list; use "the market" if it's the default broad indices set.
+        
+        Don't explain your reasoning. Output exactly one sentence.
         """
         
-        print("🔍 DEBUG - Generating mood with prompt (length: \(prompt.count) characters)")
+        let userPrompt = """
+        Context:
+        
+        scope_label: \(scopeLabel)
+        overall_change_pct: \(String(format: "%.2f", overallChangePct * 100))
+        num_up: \(numUp), num_down: \(numDown), total: \(total)
+        notable_movers: \(notableMoversJSON)
+        
+        Style: witty, light, human; avoid clichés; 15–28 words; US English names (e.g., "Microsoft," "the Dow").
+        
+        Rules:
+        - Lead with the scope_label ("\(scopeLabel)").
+        - Summarize overall mood in one clause.
+        - Optionally add a second clause with at most two notable_movers (biggest absolute % moves).
+        - No lists, no emojis, no finance slang overload.
+        - If overall_change_pct is between -0.15 and +0.15, treat as "flat."
+        - If markets are closed and data is stale, say "were" instead of "are."
+        
+        Output: one sentence only.
+        """
+        
+        // Combine system and user prompts (since we're using a single string API)
+        let prompt = """
+        \(systemPrompt)
+        
+        ---
+        
+        \(userPrompt)
+        """
+        
+        print("🔍 DEBUG - Generating mood with improved prompt (length: \(prompt.count) characters)")
+        print("🔍 DEBUG - Scope: \(scopeLabel), Overall change: \(overallChangePct * 100)%, Movers: \(notableMovers.count)")
         
         // Use Foundation Models to generate the mood
         do {
@@ -157,6 +218,34 @@ final class MarketMoodViewModel: ObservableObject {
             print("🔍 DEBUG - LLM error: \(error)")
             print("🔍 DEBUG - LLM error type: \(type(of: error))")
             throw error
+        }
+    }
+    
+    /// Maps stock symbols to their common names for display
+    private func commonName(for symbol: String) -> String? {
+        let symbolUpper = symbol.uppercased()
+        switch symbolUpper {
+        case "SPY": return "the S&P 500"
+        case "QQQ": return "the Nasdaq"
+        case "DIA": return "the Dow"
+        case "DJI", "DJIA": return "the Dow"
+        case "MSFT": return "Microsoft"
+        case "AAPL": return "Apple"
+        case "GOOGL", "GOOG": return "Google"
+        case "AMZN": return "Amazon"
+        case "TSLA": return "Tesla"
+        case "NVDA": return "Nvidia"
+        case "META": return "Meta"
+        case "NFLX": return "Netflix"
+        case "AMD": return "AMD"
+        case "INTC": return "Intel"
+        case "JPM": return "JPMorgan"
+        case "BAC": return "Bank of America"
+        case "WMT": return "Walmart"
+        case "V": return "Visa"
+        case "MA": return "Mastercard"
+        case "DIS": return "Disney"
+        default: return nil
         }
     }
     
