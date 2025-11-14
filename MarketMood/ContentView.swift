@@ -251,10 +251,9 @@ struct ContentView: View {
                            
                             let now = Date()
                             let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
-                            Text(mood)
+                            coloredMoodText(mood)
                                 .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
                                 .multilineTextAlignment(.center)
-                                .foregroundStyle(.primary)
                                 .padding(.horizontal, 32)
                             Text("\n\(dayOnly)")
                                 .font(.caption2)
@@ -845,6 +844,58 @@ struct ContentView: View {
             .foregroundStyle(changeColor)
             .accessibilityLabel(accessibilityText)
     }
+    
+    /// Creates a Text view with colored arrows (▲ green, ▼ red)
+    private func coloredMoodText(_ mood: String) -> Text {
+        let upArrow = "▲"
+        let downArrow = "▼"
+        
+        // Check if there are any arrows
+        guard mood.contains(upArrow) || mood.contains(downArrow) else {
+            return Text(mood).foregroundStyle(.primary)
+        }
+        
+        // Use AttributedString for modern text styling
+        var attributedString = AttributedString(mood)
+        
+        // Find all up arrows in the string and color them green
+        var searchStart = mood.startIndex
+        while searchStart < mood.endIndex {
+            let searchRange = searchStart..<mood.endIndex
+            if let range = mood.range(of: upArrow, range: searchRange) {
+                // Convert String range to AttributedString range
+                let startOffset = mood.distance(from: mood.startIndex, to: range.lowerBound)
+                let endOffset = mood.distance(from: mood.startIndex, to: range.upperBound)
+                let startIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: startOffset)
+                let endIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: endOffset)
+                let arrowRange = startIndex..<endIndex
+                attributedString[arrowRange].foregroundColor = .green
+                searchStart = range.upperBound
+            } else {
+                break
+            }
+        }
+        
+        // Find all down arrows in the string and color them red
+        searchStart = mood.startIndex
+        while searchStart < mood.endIndex {
+            let searchRange = searchStart..<mood.endIndex
+            if let range = mood.range(of: downArrow, range: searchRange) {
+                // Convert String range to AttributedString range
+                let startOffset = mood.distance(from: mood.startIndex, to: range.lowerBound)
+                let endOffset = mood.distance(from: mood.startIndex, to: range.upperBound)
+                let startIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: startOffset)
+                let endIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: endOffset)
+                let arrowRange = startIndex..<endIndex
+                attributedString[arrowRange].foregroundColor = .red
+                searchStart = range.upperBound
+            } else {
+                break
+            }
+        }
+        
+        return Text(attributedString)
+    }
 }
 
 // Preview: Market Up Slightly (0.5% - 1.5%)
@@ -997,10 +1048,44 @@ struct ContentView: View {
     .environmentObject(AppState())
 }
 
-// Preview: Live Data (actual API call)
-// NOTE: This preview will attempt to fetch real data, but may hit Alpha Vantage's rate limit (25 requests/day)
-// If you see rate limit errors, use one of the hardcoded previews above instead
-#Preview("Live Data") {
+// Preview: Live Market Data (hardcoded to default market indices)
+// This preview fetches live data for SPY, QQQ, and DIA
+#Preview("Live: Market") {
+    // Create a UserDefaults suite and pre-populate with default market symbols
+    let previewDefaults = UserDefaults(suiteName: "preview.market") ?? .standard
+    let defaultSymbols = ["SPY", "QQQ", "DIA"]
+    
+    // Clear any existing values and set fresh
+    previewDefaults.removeObject(forKey: "favoriteSymbols")
+    previewDefaults.set(defaultSymbols, forKey: "favoriteSymbols")
+    previewDefaults.synchronize()
+    
+    // Create AppState with the pre-populated UserDefaults
+    let marketAppState = AppState(userDefaults: previewDefaults)
+    
+    // Ensure all three symbols are present by adding any that might be missing
+    // This handles cases where UserDefaults might not have loaded correctly
+    for symbol in defaultSymbols {
+        if !marketAppState.favoriteSymbols.contains(symbol) {
+            marketAppState.addFavorite(symbol)
+        }
+    }
+    
+    // Also remove any symbols that aren't in our default set
+    let symbolsToRemove = marketAppState.favoriteSymbols.filter { !defaultSymbols.contains($0) }
+    for symbol in symbolsToRemove {
+        marketAppState.removeFavorite(symbol)
+    }
+    
+    return ContentView()
+        .environmentObject(marketAppState)
+}
+
+// Preview: Live Custom Stocks Data (uses locally stored favorites)
+// This preview fetches live data for whatever stocks are saved in UserDefaults
+#Preview("Live: Custom Stocks") {
+    // Use regular AppState which loads from UserDefaults
+    // This will use whatever custom stocks the user has saved
     ContentView()
         .environmentObject(AppState())
 }

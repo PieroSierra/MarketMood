@@ -24,7 +24,19 @@ final class AppState: ObservableObject {
         
         // Load saved favorites or use defaults
         if let saved = userDefaults.stringArray(forKey: favoritesKey), !saved.isEmpty {
-            self.favoriteSymbols = saved
+            // Normalize and deduplicate symbols (case-insensitive)
+            var seen = Set<String>()
+            self.favoriteSymbols = saved.compactMap { symbol in
+                let normalized = symbol.uppercased().trimmingCharacters(in: .whitespaces)
+                guard !normalized.isEmpty, !seen.contains(normalized) else { return nil }
+                seen.insert(normalized)
+                return normalized
+            }
+            
+            // Save deduplicated list back if it changed
+            if self.favoriteSymbols.count != saved.count {
+                saveFavorites()
+            }
         } else {
             self.favoriteSymbols = defaultSymbols
             // Save defaults so they persist

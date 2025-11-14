@@ -131,7 +131,8 @@ final class MarketMoodViewModel: ObservableObject {
         let total = quotes.count
         
         // Find notable movers (top 2 by absolute percentage change, with threshold)
-        let absThreshold = 0.025 // 2.5%
+        // Lowered threshold to 1.5% to capture more significant moves
+        let absThreshold = 0.015 // 1.5%
         let notableMovers = quotes
             .filter { abs($0.changePercent) >= absThreshold }
             .sorted { abs($0.changePercent) > abs($1.changePercent) }
@@ -141,32 +142,56 @@ final class MarketMoodViewModel: ObservableObject {
                 return (name: displayName, pct: quote.changePercent)
             }
         
-        // Build notable movers JSON array
+        // Build notable movers JSON array with explicit direction
         let notableMoversJSON: String
         if notableMovers.isEmpty {
             notableMoversJSON = "[]"
         } else {
             let moversArray = notableMovers.map { mover in
                 let sign = mover.pct >= 0 ? "+" : ""
+                let direction = mover.pct >= 0 ? "up" : "down"
                 // Escape quotes in the name for JSON safety
                 let escapedName = mover.name.replacingOccurrences(of: "\"", with: "\\\"")
-                return "{\"name\":\"\(escapedName)\",\"pct\":\(sign)\(String(format: "%.2f", mover.pct * 100))}"
+                return "{\"name\":\"\(escapedName)\",\"pct\":\(sign)\(String(format: "%.2f", mover.pct * 100)),\"direction\":\"\(direction)\"}"
             }.joined(separator: ",")
             notableMoversJSON = "[\(moversArray)]"
         }
+        
+        // Build list of all tracked symbols for context
+        let allSymbolsList = quotes.map { quote in
+            let displayName = commonName(for: quote.symbol) ?? quote.name ?? quote.symbol
+            return displayName
+        }.joined(separator: ", ")
         
         // Create the improved prompt following the suggestions
         let systemPrompt = """
         You write one short, witty line that reflects the day's mood for a set of stocks or indices.
         
-        Priorities: (1) correct sentiment; (2) concise; (3) lightly witty phrasing—no forced jokes or anthropomorphizing.
+        CRITICAL RULES - READ CAREFULLY:
+        1. You MUST ONLY reference stocks/companies that are explicitly listed in the notable_movers array.
+        2. If notable_movers is empty [], you must NOT mention any specific stock names.
+        3. When mentioning a stock from notable_movers, you MUST use the EXACT direction (up/down) and percentage from the array.
+        4. DO NOT guess, assume, or hallucinate stock movements. Use ONLY the data provided.
         
-        Never enumerate all tickers. At most, call out one or two unusually large movers.
+        Priorities: (1) correct sentiment; (2) concise; (3) lightly witty phrasing—no forced jokes or anthropomorphizing.
         
         Prefer "your stocks" if the user is tracking a custom list; use "the market" if it's the default broad indices set.
         
         Don't explain your reasoning. Output exactly one sentence.
         """
+        
+        // Build explicit instruction about notable movers
+        let moversInstruction: String
+        if notableMovers.isEmpty {
+            moversInstruction = "The notable_movers array is EMPTY []. You MUST NOT mention any specific stock names. Only describe the overall mood."
+        } else {
+            let moversDescription = notableMovers.map { mover in
+                let direction = mover.pct >= 0 ? "UP" : "DOWN"
+                let absPct = abs(mover.pct * 100)
+                return "\(mover.name) is \(direction) \(String(format: "%.2f", absPct))%"
+            }.joined(separator: ", ")
+            moversInstruction = "The notable_movers array contains: \(moversDescription). You may mention these stocks, but you MUST state the correct direction (up/down) and approximate percentage. Use ▲ for up, ▼ for down."
+        }
         
         let userPrompt = """
         Context:
@@ -176,15 +201,21 @@ final class MarketMoodViewModel: ObservableObject {
         num_up: \(numUp), num_down: \(numDown), total: \(total)
         notable_movers: \(notableMoversJSON)
         
-        Style: witty, light, human; avoid clichés; 15–28 words; US English names (e.g., "Microsoft," "the Dow").
+        \(moversInstruction)
+        
+        Available stocks being tracked (for context only, do not enumerate): \(allSymbolsList)
+        
+        Style: witty, light, human; avoid clichés; 20–35 words; US English names (e.g., "Microsoft," "the Dow"). When mentioning a stock, include the direction and percentage like "Tesla (▼2.05%)" or "Nvidia (▲0.33%)".
         
         Rules:
         - Lead with the scope_label ("\(scopeLabel)").
         - Summarize overall mood in one clause.
-        - Optionally add a second clause with at most two notable_movers (biggest absolute % moves).
-        - No lists, no emojis, no finance slang overload.
+        - ONLY if notable_movers is not empty, optionally add a second clause mentioning at most two stocks from the notable_movers array WITH their correct direction and percentage.
+        - If notable_movers is empty [], do NOT mention any specific stock names.
+        - Use ▲ for stocks that are up, ▼ for stocks that are down.
         - If overall_change_pct is between -0.15 and +0.15, treat as "flat."
         - If markets are closed and data is stale, say "were" instead of "are."
+        - CRITICAL: Use ONLY the direction and percentage values from the notable_movers array. Do NOT guess or assume.
         
         Output: one sentence only.
         """
@@ -200,11 +231,14 @@ final class MarketMoodViewModel: ObservableObject {
         
         print("🔍 DEBUG - Generating mood with improved prompt (length: \(prompt.count) characters)")
         print("🔍 DEBUG - Scope: \(scopeLabel), Overall change: \(overallChangePct * 100)%, Movers: \(notableMovers.count)")
+        print("🔍 DEBUG - Notable movers JSON: \(notableMoversJSON)")
+        print("🔍 DEBUG - All tracked symbols: \(symbols)")
+        print("🔍 DEBUG - All quotes: \(quotes.map { "\($0.symbol): \(String(format: "%.2f", $0.changePercent * 100))%" })")
         
         // Use Foundation Models to generate the mood
         do {
             print("🔍 DEBUG - Creating LanguageModelSession...")
-            let session = try LanguageModelSession()
+            let session = LanguageModelSession()
             print("🔍 DEBUG - Calling session.respond(to:)...")
             let response = try await session.respond(to: prompt)
             print("🔍 DEBUG - Got response, extracting content...")

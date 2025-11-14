@@ -161,6 +161,12 @@ struct MarketDataService {
                 if let responseString = String(data: data, encoding: .utf8) {
                     print("🔍 DEBUG - Response body for \(symbol): \(responseString)")
                     logger.error("Received error response for \(symbol) (\(httpResponse.statusCode)): \(responseString.prefix(200))")
+                    
+                    // Special handling for 402 (Premium subscription required)
+                    if httpResponse.statusCode == 402 {
+                        logger.warning("Symbol \(symbol) requires premium subscription")
+                        // Don't log this as a critical error, just skip it
+                    }
                 } else {
                     print("🔍 DEBUG - Response body for \(symbol): <unable to decode as UTF-8, \(data.count) bytes>")
                 }
@@ -196,7 +202,7 @@ struct MarketDataService {
             throw MarketDataError.missingQuote(symbol: symbol)
         }
         
-        print("🔍 DEBUG - quote found for \(symbol): symbol=\(quote.symbol), price=\(quote.price), previousClose=\(quote.previousClose)")
+        print("🔍 DEBUG - quote found for \(symbol): symbol=\(quote.symbol ?? "nil"), price=\(quote.price ?? 0), previousClose=\(quote.previousClose ?? 0)")
 
         guard let price = quote.price else {
             logger.warning("Missing or invalid price for symbol: \(symbol)")
@@ -294,7 +300,7 @@ private struct FMPQuote: Decodable {
     let dayHigh: Double?
     let yearHigh: Double?
     let yearLow: Double?
-    let marketCap: Int64?
+    let marketCap: Double?
     let priceAvg50: Double?
     let priceAvg200: Double?
     let exchange: String?
