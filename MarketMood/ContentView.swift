@@ -108,6 +108,7 @@ struct ContentView: View {
     // Cache keys
     private let cachedMoodKey = "MarketMood.cachedMoodText"
     private let cachedMoodDateKey = "MarketMood.cachedMoodDateISO8601"
+    private let cachedMarketStateKey = "MarketMood.cachedMarketState" // "good", "bad", or "neutral"
     // App Group (must match the App Group enabled for both app and widget)
     private let appGroupId = "group.com.pieroco.MarketMood"
     private let refreshRequestedKey = "MarketMood.refreshRequestedISO8601"
@@ -123,6 +124,24 @@ struct ContentView: View {
         }
     }
     
+    // Determine market state from quotes ("good", "bad", or "neutral")
+    private func determineMarketState(from quotes: [MarketQuote]) -> String {
+        guard !quotes.isEmpty else {
+            return "neutral"
+        }
+        
+        let averageChange = quotes.map(\.changePercent).reduce(0, +) / Double(quotes.count)
+        
+        switch averageChange {
+        case let value where value >= 0.005:
+            return "good"
+        case let value where value <= -0.005:
+            return "bad"
+        default:
+            return "neutral"
+        }
+    }
+    
     private func saveCachedMood(mood: String, date: Date) {
         let defaults = UserDefaults.standard
         defaults.set(mood, forKey: cachedMoodKey)
@@ -131,10 +150,15 @@ struct ContentView: View {
         cachedMood = mood
         cachedMoodDate = date
         
+        // Determine and save market state from quotes
+        let marketState = determineMarketState(from: viewModel.quotes)
+        defaults.set(marketState, forKey: cachedMarketStateKey)
+        
         // Also write to App Group so the widget can read it
         if let groupDefaults = UserDefaults(suiteName: appGroupId) {
             groupDefaults.set(mood, forKey: cachedMoodKey)
             groupDefaults.set(formatter.string(from: date), forKey: cachedMoodDateKey)
+            groupDefaults.set(marketState, forKey: cachedMarketStateKey)
         }
         
         // Request widget timeline reload so it shows the latest cache
