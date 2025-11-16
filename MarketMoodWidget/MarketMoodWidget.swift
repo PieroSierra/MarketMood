@@ -367,7 +367,7 @@ struct MarketMoodWidget: Widget {
 #Preview("Large", as: .systemLarge) {
     MarketMoodWidget()
 } timeline: {
-    MarketMoodEntry(date: .now, moodText: "Market feels upbeat with Nvidia up (▲3.15%) with solid momentum! What a time to be alive.", moodDate: .now, isRefreshing: false, marketState: "bad")
+    MarketMoodEntry(date: .now, moodText: "Market feels upbeat with Nvidia up (▲3.15%) with solid momentum! What a time to be alive.", moodDate: .now, isRefreshing: false, marketState: "neutral")
 }
 #endif
 
