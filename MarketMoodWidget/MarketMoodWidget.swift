@@ -14,6 +14,7 @@ private let refreshingUntilKey = "MarketMood.refreshingUntilISO8601"
 struct RefreshMarketMoodIntent: AppIntent {
     static var title: LocalizedStringResource = "Refresh Market Mood"
     static var description = IntentDescription("Refreshes the Market Mood widget")
+    static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
         // Mark a short-lived refreshing phase in App Group defaults
@@ -22,6 +23,8 @@ struct RefreshMarketMoodIntent: AppIntent {
         if let groupDefaults = UserDefaults(suiteName: appGroupId) {
             groupDefaults.set(formatter.string(from: until), forKey: refreshingUntilKey)
             groupDefaults.set(formatter.string(from: Date()), forKey: "MarketMood.lastRefreshTappedISO8601")
+            // Signal the app to perform a full refresh when it opens
+            groupDefaults.set(formatter.string(from: Date()), forKey: "MarketMood.refreshRequestedISO8601")
         }
         os.Logger(subsystem: "MarketMoodWidget", category: "Intent").info("RefreshMarketMoodIntent tapped; refreshing until \(until, privacy: .public)")
         // Trigger a reload of timelines so the widget reflects the refreshing phase
@@ -163,6 +166,7 @@ struct MarketMoodWidgetEntryView: View {
                     coloredMoodText(mood, fontSize: fontSizes.mood, color: .primary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.horizontal, 0)
+                        .padding(.vertical, 0)
                     if entry.isRefreshing {
                         Text("\nThinking...")
                             .font(fontSizes.date)
@@ -192,13 +196,14 @@ struct MarketMoodWidgetEntryView: View {
         }
         // Refresh button overlay (top-right) that doesn't affect layout
         .overlay(alignment: .topTrailing) {
-            Button(intent: RefreshMarketMoodIntent()) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
+            if let url = URL(string: "marketmood://refresh") {
+                Link(destination: url) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(0)
             }
-            .buttonStyle(.plain)
-            .padding(0)
         }
         // Tapping the tile opens the app
         .widgetURL(URL(string: "marketmood://open"))

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WidgetKit
 import UIKit
 
 // UIKit-based tap gesture recognizer that provides location and allows simultaneous recognition
@@ -109,6 +110,7 @@ struct ContentView: View {
     private let cachedMoodDateKey = "MarketMood.cachedMoodDateISO8601"
     // App Group (must match the App Group enabled for both app and widget)
     private let appGroupId = "group.com.pieroco.MarketMood"
+    private let refreshRequestedKey = "MarketMood.refreshRequestedISO8601"
     
     private func loadCachedMood() {
         let defaults = UserDefaults.standard
@@ -134,6 +136,9 @@ struct ContentView: View {
             groupDefaults.set(mood, forKey: cachedMoodKey)
             groupDefaults.set(formatter.string(from: date), forKey: cachedMoodDateKey)
         }
+        
+        // Request widget timeline reload so it shows the latest cache
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // Define 8 complementary colors as hex values
@@ -278,7 +283,7 @@ struct ContentView: View {
 
                         if !hasCompletedInitialLoad && viewModel.isLoading {
                             // During initial load on subsequent runs: show cached mood if available
-                            if let cachedMood {
+                            if let cachedMood {                  
                                 coloredMoodText(cachedMood, fontSize: 25, color: .secondary)
                                     .padding(.horizontal, 32)
                                 Text("\nThinking...")
@@ -435,7 +440,40 @@ struct ContentView: View {
             animationTimer?.invalidate()
             animationTimer = nil
         }
+        // When app becomes active (e.g., from widget refresh action), check for refresh request
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                handlePendingRefreshRequestIfAny()
+            }
+        }
+        // Handle deep links (from widget refresh link)
+        .onOpenURL { url in
+            if url.scheme == "marketmood", url.host == "refresh" {
+                Task {
+                    await viewModel.loadQuotes(for: appState.favoriteSymbols, regenerateMood: true)
+                }
+            }
+        }
 
+    }
+    
+    @Environment(\.scenePhase) private var scenePhase
+    
+    private func handlePendingRefreshRequestIfAny() {
+        guard let groupDefaults = UserDefaults(suiteName: appGroupId) else { return }
+        let formatter = ISO8601DateFormatter()
+        if let iso = groupDefaults.string(forKey: refreshRequestedKey),
+           let when = formatter.date(from: iso) {
+            // If the request is recent, perform a full refresh, then clear the flag
+            if Date().timeIntervalSince(when) < 60 {
+                groupDefaults.removeObject(forKey: refreshRequestedKey)
+                Task {
+                    await viewModel.loadQuotes(for: appState.favoriteSymbols, regenerateMood: true)
+                }
+            } else {
+                groupDefaults.removeObject(forKey: refreshRequestedKey)
+            }
+        }
     }
 
     // Page 2: Quotes list
