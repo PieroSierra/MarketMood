@@ -99,6 +99,34 @@ struct ContentView: View {
     
     // Track initial load state
     @State private var hasCompletedInitialLoad = false
+    
+    // Cached mood & date (persisted across launches)
+    @State private var cachedMood: String?
+    @State private var cachedMoodDate: Date?
+    
+    // Cache keys
+    private let cachedMoodKey = "MarketMood.cachedMoodText"
+    private let cachedMoodDateKey = "MarketMood.cachedMoodDateISO8601"
+    
+    private func loadCachedMood() {
+        let defaults = UserDefaults.standard
+        if let mood = defaults.string(forKey: cachedMoodKey) {
+            cachedMood = mood
+        }
+        if let dateISO = defaults.string(forKey: cachedMoodDateKey) {
+            let formatter = ISO8601DateFormatter()
+            cachedMoodDate = formatter.date(from: dateISO)
+        }
+    }
+    
+    private func saveCachedMood(mood: String, date: Date) {
+        let defaults = UserDefaults.standard
+        defaults.set(mood, forKey: cachedMoodKey)
+        let formatter = ISO8601DateFormatter()
+        defaults.set(formatter.string(from: date), forKey: cachedMoodDateKey)
+        cachedMood = mood
+        cachedMoodDate = date
+    }
 
     // Define 8 complementary colors as hex values
     // Good market colors: green, blue, yellow, aquamarine
@@ -241,14 +269,26 @@ struct ContentView: View {
                         Spacer()
 
                         if !hasCompletedInitialLoad && viewModel.isLoading {
-                            // Show loading text during initial load
-                            Text("Thinking...")
-                                .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 32)
+                            // During initial load on subsequent runs: show cached mood if available
+                            if let cachedMood {
+                                coloredMoodText(cachedMood)
+                                    .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 32)
+                                Text("\nThinking...")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                // First run with no cache yet
+                                Text("Thinking...")
+                                    .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 32)
+                            }
                         } else if let mood = viewModel.mood {
-                           
+                            // Show fresh mood and current date
                             let now = Date()
                             let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
                             coloredMoodText(mood)
@@ -258,30 +298,45 @@ struct ContentView: View {
                             Text("\n\(dayOnly)")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-
                         } else if let errorMessage = viewModel.errorMessage {
-                            VStack(spacing: 16) {
-                                Text(errorMessage)
-                                    .font(
-                                        .system(
-                                            size: 22,
-                                            weight: .regular,
-                                            design: .default
-                                        )
-                                    )
+                            // If we have cached content, show it in gray with red "Last: <date>"
+                            if let cachedMood {
+                                coloredMoodText(cachedMood)
+                                    .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
                                     .multilineTextAlignment(.center)
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(.secondary)
                                     .padding(.horizontal, 32)
-
-                                Button {
-                                    Task {
-                                        await viewModel.loadQuotes(
-                                            for: appState.favoriteSymbols,
-                                            regenerateMood: true
+                                if let cachedMoodDate {
+                                    let dayOnly = cachedMoodDate.formatted(.dateTime.month(.wide).day().year())
+                                    Text("\nLast: \(dayOnly)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.red)
+                                }
+                            } else {
+                                // No cache to show; fall back to error UI with retry
+                                VStack(spacing: 16) {
+                                    Text(errorMessage)
+                                        .font(
+                                            .system(
+                                                size: 22,
+                                                weight: .regular,
+                                                design: .default
+                                            )
                                         )
+                                        .multilineTextAlignment(.center)
+                                        .foregroundStyle(.red)
+                                        .padding(.horizontal, 32)
+                                    
+                                    Button {
+                                        Task {
+                                            await viewModel.loadQuotes(
+                                                for: appState.favoriteSymbols,
+                                                regenerateMood: true
+                                            )
+                                        }
+                                    } label: {
+                                        Label("Retry", systemImage: "arrow.clockwise")
                                     }
-                                } label: {
-                                    Label("Retry", systemImage: "arrow.clockwise")
                                 }
                             }
                         } else if viewModel.isLoading {
@@ -331,6 +386,11 @@ struct ContentView: View {
                 // Center the ripple on initial mood load
                 rippleCenter = CGPoint(x: 200, y: 400)
                 rippleTrigger = UUID()
+                
+                // Save latest mood to cache with current date
+                if let moodToSave = newMood {
+                    saveCachedMood(mood: moodToSave, date: Date())
+                }
             }
         }
         .onChange(of: hasCompletedInitialLoad) { _, completed in
@@ -342,6 +402,8 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            // Load cached mood/date for immediate display on subsequent runs
+            loadCachedMood()
             // Initialize random gradient centers and velocities if not already set
             if gradientCenters.isEmpty {
                 initializeGradientCenters()
@@ -761,9 +823,9 @@ struct ContentView: View {
             }
             .blur(radius: 30)  // Less blur for more visibility
             .ignoresSafeArea()
-            /*    .overlay {
+                .overlay {
                     // Black dots at center for visibility (comment out later)
-                    GeometryReader { overlayGeometry in
+                 /*   GeometryReader { overlayGeometry in
                         ZStack {
                             ForEach(0..<4, id: \.self) { index in
                                 if index < gradientCenters.count {
@@ -778,8 +840,8 @@ struct ContentView: View {
                                 }
                             }
                         }
-                    }
-                } */
+                    }*/
+                }
         }
     }
 
