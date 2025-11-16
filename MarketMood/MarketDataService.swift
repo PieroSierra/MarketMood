@@ -8,6 +8,7 @@
 import Foundation
 import OSLog
 
+// MARK: - Public Models
 struct MarketQuote: Identifiable, Equatable {
     let symbol: String
     let name: String?
@@ -38,6 +39,7 @@ struct StockSearchResult: Identifiable, Equatable {
     var id: String { symbol }
 }
 
+// MARK: - Errors
 enum MarketDataError: Error {
     case invalidURL
     case invalidResponse(statusCode: Int)
@@ -45,6 +47,7 @@ enum MarketDataError: Error {
     case missingPreviousClose(symbol: String)
 }
 
+// MARK: - Service
 struct MarketDataService {
     private let baseURL = URL(string: "https://financialmodelingprep.com")!
     private let apiKey: String
@@ -63,6 +66,7 @@ struct MarketDataService {
         }
     }
     
+    // MARK: - Quotes
     func fetchQuotes(for symbols: [String] = ["SPY", "QQQ", "DIA"]) async throws -> [MarketQuote] {
         // Validate API key before making network requests
         validateAPIKey()
@@ -131,6 +135,7 @@ struct MarketDataService {
         }
     }
     
+    // MARK: - Single Quote
     private func fetchQuote(for symbol: String) async throws -> MarketQuote {
         guard let url = url(for: symbol) else {
             logger.error("Failed to generate URL for symbol: \(symbol)")
@@ -220,6 +225,7 @@ struct MarketDataService {
         return quoteResult
     }
 
+    // MARK: - Search
     func searchStocks(query: String, limit: Int = 50) async throws -> [StockSearchResult] {
         validateAPIKey()
         
@@ -264,6 +270,7 @@ struct MarketDataService {
         }
     }
     
+    // MARK: - URL Building
     private func url(for symbol: String) -> URL? {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         components?.path = "/stable/quote"

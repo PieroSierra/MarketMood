@@ -9,6 +9,8 @@ import SwiftUI
 import WidgetKit
 import UIKit
 
+// MARK: - Tap Location Support
+
 // UIKit-based tap gesture recognizer that provides location and allows simultaneous recognition
 struct TapLocationView: UIViewRepresentable {
     let onTap: (CGPoint) -> Void
@@ -64,6 +66,7 @@ extension TapLocationUIView: UIGestureRecognizerDelegate {
     }
 }
 
+// MARK: - Color Helpers
 // HEX color code extension
 extension Color {
     init(hex: Int, opacity: Double = 1.0) {
@@ -74,18 +77,21 @@ extension Color {
     }
 }
 
+// MARK: - Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel: MarketMoodViewModel
     @State private var animationPhase: Double = 0
     @State private var animationTimer: Timer?
-
+    
+    // MARK: - Animated Gradient State
     // Random center points for gradient zones (0.0 to 1.0 for UnitPoint)
     @State private var gradientCenters: [CGPoint] = []
     @State private var gradientVelocities: [CGPoint] = []
     @State private var pulseSpeeds: [Double] = []  // Individual pulse speed for each dot
     @State private var pulsePhases: [Double] = []  // Individual pulse phase for each dot
 
+    // MARK: - Add Stock Search State
     // Add stock dialog state
     @State private var showAddDialog = false
     @State private var newSymbolText = ""
@@ -94,10 +100,12 @@ struct ContentView: View {
     @State private var searchError: String?
     @State private var searchTask: Task<Void, Never>?
     
+    // MARK: - Ripple Effect State
     // Ripple effect trigger
     @State private var rippleTrigger = UUID()
     @State private var rippleCenter = CGPoint(x: 200, y: 400)
     
+    // MARK: - Load & Cache State
     // Track initial load state
     @State private var hasCompletedInitialLoad = false
     
@@ -105,6 +113,7 @@ struct ContentView: View {
     @State private var cachedMood: String?
     @State private var cachedMoodDate: Date?
     
+    // MARK: - Persistence Keys
     // Cache keys
     private let cachedMoodKey = "MarketMood.cachedMoodText"
     private let cachedMoodDateKey = "MarketMood.cachedMoodDateISO8601"
@@ -113,6 +122,7 @@ struct ContentView: View {
     private let appGroupId = "group.com.pieroco.MarketMood"
     private let refreshRequestedKey = "MarketMood.refreshRequestedISO8601"
     
+    // MARK: - Cached Mood
     private func loadCachedMood() {
         let defaults = UserDefaults.standard
         if let mood = defaults.string(forKey: cachedMoodKey) {
@@ -165,6 +175,7 @@ struct ContentView: View {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
+    // MARK: - Gradient Color Palettes
     // Define 8 complementary colors as hex values
     // Good market colors: green, blue, yellow, aquamarine
     private static let goodColorHex = [0x51db51, 0x4169E1, 0xFFD700, 0x7FFFD4]
@@ -187,6 +198,7 @@ struct ContentView: View {
         return Color(hex: (mixedR << 16) | (mixedG << 8) | mixedB)
     }
 
+    // MARK: - Initializers
     @MainActor
     init() {
         _viewModel = StateObject(wrappedValue: MarketMoodViewModel())
@@ -207,6 +219,7 @@ struct ContentView: View {
             .withAlphaComponent(0.3)
     }
 
+    // MARK: - Gradient Colors
     // Determine gradient colors based on market state - returns 4 colors
     private var gradientColors: [Color] {
         // Show neutral colors during initial load or when no data
@@ -242,6 +255,7 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Body
     var body: some View {
         
         TabView {
@@ -293,6 +307,7 @@ struct ContentView: View {
         .ignoresSafeArea()/// do not erase!
     }
 
+    // MARK: - Mood Page
     // Page 1: Centered mood text
     private var moodPage: some View {
         
@@ -481,6 +496,7 @@ struct ContentView: View {
 
     }
     
+    // MARK: - Scene Phase & Refresh Handling
     @Environment(\.scenePhase) private var scenePhase
     
     private func handlePendingRefreshRequestIfAny() {
@@ -500,6 +516,7 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Quotes Page
     // Page 2: Quotes list
     private var quotesPage: some View {
         NavigationStack {
@@ -597,6 +614,7 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Add Stock Dialog
     // Add stock dialog
     private var addStockDialog: some View {
         NavigationStack {
@@ -674,6 +692,7 @@ struct ContentView: View {
         }
     }
     
+    // MARK: - Search Logic
     private func performSearch(query: String) {
         // Cancel previous search task
         searchTask?.cancel()
@@ -753,6 +772,7 @@ struct ContentView: View {
         isSearching = false
     }
 
+    // MARK: - Gradient Animation
     // Initialize random gradient center positions and velocities
     private func initializeGradientCenters() {
         gradientCenters = (0..<4).map { _ in
@@ -824,6 +844,7 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Gradient Background View
     // Animated gradient background with multiple pulsing radial zones
     private var animatedGradientBackground: some View {
         GeometryReader { geometry in
@@ -907,6 +928,7 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Quotes List Helpers
     private var loadingRow: some View {
         HStack {
             Spacer()
@@ -969,6 +991,7 @@ struct ContentView: View {
             .accessibilityLabel(accessibilityText)
     }
     
+    // MARK: - Mood Text Formatting
     /// Creates a Text view with colored arrows (▲ green, ▼ red)
     private func coloredMoodText(_ mood: String, fontSize: CGFloat, color: Color) -> some View {
         // Build a single AttributedString, colorizing only the arrows
@@ -1006,6 +1029,7 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Previews
 // Preview: Market Up Slightly (0.5% - 1.5%)
 #Preview("Market Up Slightly") {
     ContentView(

@@ -9,15 +9,19 @@ import Foundation
 import Combine
 import FoundationModels
 
+// MARK: - Market Mood View Model
 @MainActor
 final class MarketMoodViewModel: ObservableObject {
+    // MARK: - Published State
     @Published private(set) var quotes: [MarketQuote]
     @Published private(set) var isLoading: Bool
     @Published private(set) var errorMessage: String?
     @Published private(set) var mood: String?
 
+    // MARK: - Dependencies
     private let dataService: MarketDataService
 
+    // MARK: - Initialization
     init(
         dataService: MarketDataService,
         initialQuotes: [MarketQuote] = [],
@@ -47,6 +51,7 @@ final class MarketMoodViewModel: ObservableObject {
         )
     }
 
+    // MARK: - Public API
     func loadQuotes(for symbols: [String] = [], regenerateMood: Bool = false) async {
         guard !isLoading else { return }
 
@@ -87,7 +92,6 @@ final class MarketMoodViewModel: ObservableObject {
         } catch {
             print("🔍 DEBUG - Failed to fetch quotes: \(error)")
             print("🔍 DEBUG - Error details: \(error.localizedDescription)")
-            quotes = []
             errorMessage = message(for: error)
             // Only clear mood on error if we were regenerating
             if regenerateMood {
@@ -98,6 +102,7 @@ final class MarketMoodViewModel: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - Error Handling
     private func message(for error: Error) -> String {
         switch error {
         case MarketDataError.invalidURL:
@@ -113,6 +118,7 @@ final class MarketMoodViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Mood Generation (LLM)
     private func generateMood(from quotes: [MarketQuote], symbols: [String]) async throws -> String? {
         guard !quotes.isEmpty else { return nil }
 
@@ -255,6 +261,7 @@ final class MarketMoodViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Symbol Display Names
     /// Maps stock symbols to their common names for display
     private func commonName(for symbol: String) -> String? {
         let symbolUpper = symbol.uppercased()
@@ -283,6 +290,7 @@ final class MarketMoodViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Fallback Mood Generation
     // Fallback mood generation using simple case statement
     private func makeMood(from quotes: [MarketQuote]) -> String? {
         guard !quotes.isEmpty else { return nil }
