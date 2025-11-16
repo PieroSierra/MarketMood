@@ -6,19 +6,90 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4339D2D12ECA223000D3C9FB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4339D2D02ECA223000D3C9FB /* WidgetKit.framework */; };
+		4339D2D32ECA223000D3C9FB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4339D2D22ECA223000D3C9FB /* SwiftUI.framework */; };
+		4339D2E02ECA223200D3C9FB /* MarketMoodWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4339D2CE2ECA223000D3C9FB /* MarketMoodWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4339D2DE2ECA223200D3C9FB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 439F0F202E93D75200101CA0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4339D2CD2ECA223000D3C9FB;
+			remoteInfo = MarketMoodWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4339D2E52ECA223200D3C9FB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4339D2E02ECA223200D3C9FB /* MarketMoodWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		4339D2CE2ECA223000D3C9FB /* MarketMoodWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MarketMoodWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4339D2D02ECA223000D3C9FB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		4339D2D22ECA223000D3C9FB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		4339D2EE2ECA23D600D3C9FB /* MarketMoodWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MarketMoodWidgetExtension.entitlements; sourceTree = "<group>"; };
 		439F0F282E93D75200101CA0 /* MarketMood.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MarketMood.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4339D2E12ECA223200D3C9FB /* Exceptions for "MarketMoodWidget" folder in "MarketMoodWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4339D2CD2ECA223000D3C9FB /* MarketMoodWidgetExtension */;
+		};
+		4339D2F02ECA241400D3C9FB /* Exceptions for "MarketMood" folder in "MarketMood" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 439F0F272E93D75200101CA0 /* MarketMood */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		4339D2D42ECA223000D3C9FB /* MarketMoodWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4339D2E12ECA223200D3C9FB /* Exceptions for "MarketMoodWidget" folder in "MarketMoodWidgetExtension" target */,
+			);
+			path = MarketMoodWidget;
+			sourceTree = "<group>";
+		};
 		439F0F2A2E93D75200101CA0 /* MarketMood */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4339D2F02ECA241400D3C9FB /* Exceptions for "MarketMood" folder in "MarketMood" target */,
+			);
 			path = MarketMood;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4339D2CB2ECA223000D3C9FB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4339D2D32ECA223000D3C9FB /* SwiftUI.framework in Frameworks */,
+				4339D2D12ECA223000D3C9FB /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		439F0F252E93D75200101CA0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -29,10 +100,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4339D2CF2ECA223000D3C9FB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4339D2D02ECA223000D3C9FB /* WidgetKit.framework */,
+				4339D2D22ECA223000D3C9FB /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		439F0F1F2E93D75200101CA0 = {
 			isa = PBXGroup;
 			children = (
+				4339D2EE2ECA23D600D3C9FB /* MarketMoodWidgetExtension.entitlements */,
 				439F0F2A2E93D75200101CA0 /* MarketMood */,
+				4339D2D42ECA223000D3C9FB /* MarketMoodWidget */,
+				4339D2CF2ECA223000D3C9FB /* Frameworks */,
 				439F0F292E93D75200101CA0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				439F0F282E93D75200101CA0 /* MarketMood.app */,
+				4339D2CE2ECA223000D3C9FB /* MarketMoodWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +132,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4339D2CD2ECA223000D3C9FB /* MarketMoodWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4339D2E22ECA223200D3C9FB /* Build configuration list for PBXNativeTarget "MarketMoodWidgetExtension" */;
+			buildPhases = (
+				4339D2CA2ECA223000D3C9FB /* Sources */,
+				4339D2CB2ECA223000D3C9FB /* Frameworks */,
+				4339D2CC2ECA223000D3C9FB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4339D2D42ECA223000D3C9FB /* MarketMoodWidget */,
+			);
+			name = MarketMoodWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = MarketMoodWidgetExtension;
+			productReference = 4339D2CE2ECA223000D3C9FB /* MarketMoodWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		439F0F272E93D75200101CA0 /* MarketMood */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 439F0F352E93D75500101CA0 /* Build configuration list for PBXNativeTarget "MarketMood" */;
@@ -55,10 +161,12 @@
 				439F0F242E93D75200101CA0 /* Sources */,
 				439F0F252E93D75200101CA0 /* Frameworks */,
 				439F0F262E93D75200101CA0 /* Resources */,
+				4339D2E52ECA223200D3C9FB /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4339D2DF2ECA223200D3C9FB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				439F0F2A2E93D75200101CA0 /* MarketMood */,
@@ -80,6 +188,9 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					4339D2CD2ECA223000D3C9FB = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
 					439F0F272E93D75200101CA0 = {
 						CreatedOnToolsVersion = 26.0.1;
 					};
@@ -100,11 +211,19 @@
 			projectRoot = "";
 			targets = (
 				439F0F272E93D75200101CA0 /* MarketMood */,
+				4339D2CD2ECA223000D3C9FB /* MarketMoodWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4339D2CC2ECA223000D3C9FB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		439F0F262E93D75200101CA0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +234,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4339D2CA2ECA223000D3C9FB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		439F0F242E93D75200101CA0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +250,77 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		4339D2DF2ECA223200D3C9FB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4339D2CD2ECA223000D3C9FB /* MarketMoodWidgetExtension */;
+			targetProxy = 4339D2DE2ECA223200D3C9FB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		4339D2E32ECA223200D3C9FB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MarketMoodWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HBMCF3J59V;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MarketMoodWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MarketMoodWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = pieroco.MarketMood.MarketMoodWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4339D2E42ECA223200D3C9FB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MarketMoodWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HBMCF3J59V;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MarketMoodWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MarketMoodWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = pieroco.MarketMood.MarketMoodWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		439F0F332E93D75500101CA0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 439F0F2A2E93D75200101CA0 /* MarketMood */;
@@ -259,11 +455,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MarketMood/MarketMood.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HBMCF3J59V;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MarketMood/Info.plist;
 				INFOPLIST_KEY_API_KEY = "$(API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -294,11 +492,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MarketMood/MarketMood.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HBMCF3J59V;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MarketMood/Info.plist;
 				INFOPLIST_KEY_API_KEY = "$(API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -325,6 +525,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4339D2E22ECA223200D3C9FB /* Build configuration list for PBXNativeTarget "MarketMoodWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4339D2E32ECA223200D3C9FB /* Debug */,
+				4339D2E42ECA223200D3C9FB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		439F0F232E93D75200101CA0 /* Build configuration list for PBXProject "MarketMood" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

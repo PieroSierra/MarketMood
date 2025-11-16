@@ -107,6 +107,8 @@ struct ContentView: View {
     // Cache keys
     private let cachedMoodKey = "MarketMood.cachedMoodText"
     private let cachedMoodDateKey = "MarketMood.cachedMoodDateISO8601"
+    // App Group (must match the App Group enabled for both app and widget)
+    private let appGroupId = "group.com.pieroco.MarketMood"
     
     private func loadCachedMood() {
         let defaults = UserDefaults.standard
@@ -126,6 +128,12 @@ struct ContentView: View {
         defaults.set(formatter.string(from: date), forKey: cachedMoodDateKey)
         cachedMood = mood
         cachedMoodDate = date
+        
+        // Also write to App Group so the widget can read it
+        if let groupDefaults = UserDefaults(suiteName: appGroupId) {
+            groupDefaults.set(mood, forKey: cachedMoodKey)
+            groupDefaults.set(formatter.string(from: date), forKey: cachedMoodDateKey)
+        }
     }
 
     // Define 8 complementary colors as hex values
@@ -271,10 +279,7 @@ struct ContentView: View {
                         if !hasCompletedInitialLoad && viewModel.isLoading {
                             // During initial load on subsequent runs: show cached mood if available
                             if let cachedMood {
-                                coloredMoodText(cachedMood)
-                                    .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
-                                    .multilineTextAlignment(.center)
-                                    .foregroundStyle(.secondary)
+                                coloredMoodText(cachedMood, fontSize: 25, color: .secondary)
                                     .padding(.horizontal, 32)
                                 Text("\nThinking...")
                                     .font(.caption2)
@@ -291,9 +296,7 @@ struct ContentView: View {
                             // Show fresh mood and current date
                             let now = Date()
                             let dayOnly = now.formatted(.dateTime.month(.wide).day().year())
-                            coloredMoodText(mood)
-                                .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
-                                .multilineTextAlignment(.center)
+                            coloredMoodText(mood, fontSize: 25, color: .primary)
                                 .padding(.horizontal, 32)
                             Text("\n\(dayOnly)")
                                 .font(.caption2)
@@ -301,10 +304,7 @@ struct ContentView: View {
                         } else if let errorMessage = viewModel.errorMessage {
                             // If we have cached content, show it in gray with red "Last: <date>"
                             if let cachedMood {
-                                coloredMoodText(cachedMood)
-                                    .font(.custom("HelveticaNeue-Medium", fixedSize: 25))
-                                    .multilineTextAlignment(.center)
-                                    .foregroundStyle(.secondary)
+                                coloredMoodText(cachedMood, fontSize: 25, color: .secondary)
                                     .padding(.horizontal, 32)
                                 if let cachedMoodDate {
                                     let dayOnly = cachedMoodDate.formatted(.dateTime.month(.wide).day().year())
@@ -908,55 +908,39 @@ struct ContentView: View {
     }
     
     /// Creates a Text view with colored arrows (▲ green, ▼ red)
-    private func coloredMoodText(_ mood: String) -> Text {
+    private func coloredMoodText(_ mood: String, fontSize: CGFloat, color: Color) -> some View {
+        // Build a single AttributedString, colorizing only the arrows
         let upArrow = "▲"
         let downArrow = "▼"
-        
-        // Check if there are any arrows
-        guard mood.contains(upArrow) || mood.contains(downArrow) else {
-            return Text(mood).foregroundStyle(.primary)
-        }
-        
-        // Use AttributedString for modern text styling
-        var attributedString = AttributedString(mood)
-        
-        // Find all up arrows in the string and color them green
-        var searchStart = mood.startIndex
-        while searchStart < mood.endIndex {
-            let searchRange = searchStart..<mood.endIndex
-            if let range = mood.range(of: upArrow, range: searchRange) {
-                // Convert String range to AttributedString range
-                let startOffset = mood.distance(from: mood.startIndex, to: range.lowerBound)
-                let endOffset = mood.distance(from: mood.startIndex, to: range.upperBound)
-                let startIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: startOffset)
-                let endIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: endOffset)
-                let arrowRange = startIndex..<endIndex
-                attributedString[arrowRange].foregroundColor = .green
-                searchStart = range.upperBound
-            } else {
-                break
+
+        var attributed = AttributedString()
+        let tokens = mood.split(separator: " ")
+
+        for (index, token) in tokens.enumerated() {
+            if index > 0 {
+                attributed.append(AttributedString(" "))
             }
-        }
-        
-        // Find all down arrows in the string and color them red
-        searchStart = mood.startIndex
-        while searchStart < mood.endIndex {
-            let searchRange = searchStart..<mood.endIndex
-            if let range = mood.range(of: downArrow, range: searchRange) {
-                // Convert String range to AttributedString range
-                let startOffset = mood.distance(from: mood.startIndex, to: range.lowerBound)
-                let endOffset = mood.distance(from: mood.startIndex, to: range.upperBound)
-                let startIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: startOffset)
-                let endIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: endOffset)
-                let arrowRange = startIndex..<endIndex
-                attributedString[arrowRange].foregroundColor = .red
-                searchStart = range.upperBound
-            } else {
-                break
+
+            var part = AttributedString(String(token))
+
+            // Colorize any up arrows within this token
+            if let range = part.range(of: upArrow) {
+                part[range].foregroundColor = .green
             }
+
+            // Colorize any down arrows within this token
+            if let range = part.range(of: downArrow) {
+                part[range].foregroundColor = .red
+            }
+
+            attributed.append(part)
         }
-        
-        return Text(attributedString)
+
+        return Text(attributed)
+            // Default color for non-arrow text
+            .foregroundStyle(color)
+            .font(.system(size: fontSize, weight: .regular))
+            .multilineTextAlignment(.center)
     }
 }
 
