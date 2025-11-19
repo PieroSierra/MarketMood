@@ -421,7 +421,7 @@ struct ContentView: View {
             }
 
         }
-        .refreshable {
+         .refreshable {
             await viewModel.loadQuotes(for: appState.favoriteSymbols, regenerateMood: true)
         }
         .onChange(of: viewModel.mood) { _, newMood in
@@ -620,10 +620,11 @@ struct ContentView: View {
         NavigationStack {
             VStack(spacing: 10) {
                 // Search field
-                TextField("Stock Symbol or Company Name", text: $newSymbolText)
+                TextField("Stock symbol or company name...", text: $newSymbolText)
                     .textFieldStyle(.roundedBorder)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
+                    .frame(height: 50)
                     .padding()
                     .onChange(of: newSymbolText) { _, newValue in
                         performSearch(query: newValue)

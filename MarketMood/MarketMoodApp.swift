@@ -10,6 +10,7 @@
 /// [ ] make refresh work from widget
 /// [X] fix "MSFT" lookup issue
 /// [ ] enhance colors a bit
+/// [X] fix margin
 
 
 import SwiftUI

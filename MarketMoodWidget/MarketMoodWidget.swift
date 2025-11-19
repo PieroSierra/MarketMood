@@ -298,6 +298,8 @@ struct MarketMoodWidgetEntryView: View {
                     Spacer()
                 }
             }
+
+
             // Date overlay (center-bottom)
             .overlay(alignment: .bottom) {
                 if (family != .systemSmall) {
@@ -332,8 +334,9 @@ struct MarketMoodWidgetEntryView: View {
             }
             // Tapping the tile opens the app
             .widgetURL(URL(string: "marketmood://open"))
-        }
+            }
         .containerBackground(Color.white.opacity(0.5), for: .widget)
+        .padding(-5)
     }
 }
 
@@ -355,7 +358,7 @@ struct MarketMoodWidget: Widget {
 #Preview("Small", as: .systemSmall) {
     MarketMoodWidget()
 } timeline: {
-    MarketMoodEntry(date: .now, moodText: "Market feels upbeat with Nvidia up (▲3.15%) with solid momentum. What a time to be alive.", moodDate: .now, isRefreshing: false, marketState: "bad")
+    MarketMoodEntry(date: .now, moodText: "Market feels upbeat with Nvidia up (▲3.15%) with solid momentum. What a time to be alive.  This is now getting long thoug, maybe too long really for testing", moodDate: .now, isRefreshing: false, marketState: "bad")
 }
 
 #Preview("Medium", as: .systemMedium) {
