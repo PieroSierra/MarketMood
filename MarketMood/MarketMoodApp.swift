@@ -5,6 +5,13 @@
 //  Created by Piero Sierra on 06/10/2025.
 //
 
+/// TODOS
+/// [ ] make pulldown & refresh work on the homepage
+/// [ ] make refresh work from widget
+/// [X] fix "MSFT" lookup issue
+/// [ ] enhance colors a bit
+
+
 import SwiftUI
 import SwiftData
 

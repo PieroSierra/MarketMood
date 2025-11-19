@@ -229,45 +229,104 @@ struct MarketDataService {
     func searchStocks(query: String, limit: Int = 50) async throws -> [StockSearchResult] {
         validateAPIKey()
         
-        guard let url = searchURL(query: query, limit: limit) else {
-            logger.error("Failed to generate search URL for query: \(query)")
-            throw MarketDataError.invalidURL
-        }
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         
-        logger.info("Searching stocks with query: \(query)")
+        // First, perform name-based search (existing behavior)
+        var nameSearchResults: [StockSearchResult] = []
         
-        let request = URLRequest(url: url)
-        
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            logger.error("Search request failed for \(query): \(error.localizedDescription)")
-            throw error
-        }
-        
-        if let httpResponse = response as? HTTPURLResponse {
-            if !(200..<300).contains(httpResponse.statusCode) {
-                logger.error("Search API returned error status: \(httpResponse.statusCode)")
-                throw MarketDataError.invalidResponse(statusCode: httpResponse.statusCode)
+        if let url = searchURL(query: query, limit: limit) {
+            logger.info("Searching stocks by name with query: \(query)")
+            
+            let request = URLRequest(url: url)
+            
+            let (data, response): (Data, URLResponse)
+            do {
+                (data, response) = try await URLSession.shared.data(for: request)
+            } catch {
+                logger.error("Search request failed for \(query): \(error.localizedDescription)")
+                throw error
+            }
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                if !(200..<300).contains(httpResponse.statusCode) {
+                    logger.error("Search API returned error status: \(httpResponse.statusCode)")
+                    throw MarketDataError.invalidResponse(statusCode: httpResponse.statusCode)
+                }
+            }
+            
+            do {
+                let results = try JSONDecoder().decode([FMPSearchResult].self, from: data)
+                nameSearchResults = results.map { result in
+                    StockSearchResult(
+                        symbol: result.symbol,
+                        name: result.name,
+                        currency: result.currency,
+                        exchange: result.exchange,
+                        exchangeFullName: result.exchangeFullName
+                    )
+                }
+            } catch {
+                logger.error("Failed to decode search results: \(error.localizedDescription)")
+                throw error
             }
         }
         
-        do {
-            let results = try JSONDecoder().decode([FMPSearchResult].self, from: data)
-            return results.map { result in
-                StockSearchResult(
-                    symbol: result.symbol,
-                    name: result.name,
-                    currency: result.currency,
-                    exchange: result.exchange,
-                    exchangeFullName: result.exchangeFullName
+        // If query looks like a ticker (short, alphanumeric, uppercase), also try searching by symbol
+        let looksLikeTicker = trimmedQuery.count <= 5 && trimmedQuery.allSatisfy { $0.isLetter || $0.isNumber }
+        var symbolSearchResults: [StockSearchResult] = []
+        
+        if looksLikeTicker {
+            // Try to fetch quote for this symbol directly
+            do {
+                let quote = try await fetchQuote(for: trimmedQuery)
+                // If we got a quote, create a search result for it
+                let symbolResult = StockSearchResult(
+                    symbol: quote.symbol,
+                    name: quote.name ?? quote.symbol,
+                    currency: "USD",
+                    exchange: nil,
+                    exchangeFullName: nil
                 )
+                symbolSearchResults = [symbolResult]
+                logger.info("Found stock by symbol: \(trimmedQuery)")
+            } catch {
+                // Symbol not found or other error - that's okay, we'll just use name search results
+                logger.info("Symbol search for \(trimmedQuery) did not find a match")
             }
-        } catch {
-            logger.error("Failed to decode search results: \(error.localizedDescription)")
-            throw error
         }
+        
+        // Combine results, removing duplicates (by symbol)
+        var combinedResults: [StockSearchResult] = []
+        var seenSymbols = Set<String>()
+        
+        // Add symbol search results first (they're more specific)
+        for result in symbolSearchResults {
+            if !seenSymbols.contains(result.symbol.uppercased()) {
+                combinedResults.append(result)
+                seenSymbols.insert(result.symbol.uppercased())
+            }
+        }
+        
+        // Then add name search results
+        for result in nameSearchResults {
+            if !seenSymbols.contains(result.symbol.uppercased()) {
+                combinedResults.append(result)
+                seenSymbols.insert(result.symbol.uppercased())
+            }
+        }
+        
+        // Also filter name search results to show symbol matches at the top
+        let symbolMatches = combinedResults.filter { 
+            $0.symbol.uppercased().contains(trimmedQuery) || 
+            $0.symbol.uppercased() == trimmedQuery
+        }
+        let otherResults = combinedResults.filter { 
+            !($0.symbol.uppercased().contains(trimmedQuery) || 
+              $0.symbol.uppercased() == trimmedQuery)
+        }
+        
+        // Return symbol matches first, then other results, limited to requested limit
+        return Array((symbolMatches + otherResults).prefix(limit))
     }
     
     // MARK: - URL Building
