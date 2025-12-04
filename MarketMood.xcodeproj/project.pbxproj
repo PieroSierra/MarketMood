@@ -10,6 +10,8 @@
 		4339D2D12ECA223000D3C9FB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4339D2D02ECA223000D3C9FB /* WidgetKit.framework */; };
 		4339D2D32ECA223000D3C9FB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4339D2D22ECA223000D3C9FB /* SwiftUI.framework */; };
 		4339D2E02ECA223200D3C9FB /* MarketMoodWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4339D2CE2ECA223000D3C9FB /* MarketMoodWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		435737F92EE1EDCE006516D8 /* generate-api-key.sh in Resources */ = {isa = PBXBuildFile; fileRef = 435737F72EE1EDCE006516D8 /* generate-api-key.sh */; };
+		435737FA2EE1EDCE006516D8 /* generate-api-key.sh in Resources */ = {isa = PBXBuildFile; fileRef = 435737F72EE1EDCE006516D8 /* generate-api-key.sh */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +43,7 @@
 		4339D2D02ECA223000D3C9FB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		4339D2D22ECA223000D3C9FB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		4339D2EE2ECA23D600D3C9FB /* MarketMoodWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MarketMoodWidgetExtension.entitlements; sourceTree = "<group>"; };
+		435737F72EE1EDCE006516D8 /* generate-api-key.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "generate-api-key.sh"; sourceTree = "<group>"; };
 		439F0F282E93D75200101CA0 /* MarketMood.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MarketMood.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -109,9 +112,18 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		435737F82EE1EDCE006516D8 /* scripts */ = {
+			isa = PBXGroup;
+			children = (
+				435737F72EE1EDCE006516D8 /* generate-api-key.sh */,
+			);
+			path = scripts;
+			sourceTree = "<group>";
+		};
 		439F0F1F2E93D75200101CA0 = {
 			isa = PBXGroup;
 			children = (
+				435737F82EE1EDCE006516D8 /* scripts */,
 				4339D2EE2ECA23D600D3C9FB /* MarketMoodWidgetExtension.entitlements */,
 				439F0F2A2E93D75200101CA0 /* MarketMood */,
 				4339D2D42ECA223000D3C9FB /* MarketMoodWidget */,
@@ -221,6 +233,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				435737FA2EE1EDCE006516D8 /* generate-api-key.sh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -228,6 +241,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				435737F92EE1EDCE006516D8 /* generate-api-key.sh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
