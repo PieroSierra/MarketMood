@@ -12,6 +12,7 @@
 		4339D2E02ECA223200D3C9FB /* MarketMoodWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4339D2CE2ECA223000D3C9FB /* MarketMoodWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		435737F92EE1EDCE006516D8 /* generate-api-key.sh in Resources */ = {isa = PBXBuildFile; fileRef = 435737F72EE1EDCE006516D8 /* generate-api-key.sh */; };
 		435737FA2EE1EDCE006516D8 /* generate-api-key.sh in Resources */ = {isa = PBXBuildFile; fileRef = 435737F72EE1EDCE006516D8 /* generate-api-key.sh */; };
+		43F193382EE32C9500FC42BC /* Readme.md in Resources */ = {isa = PBXBuildFile; fileRef = 43F193372EE32C9000FC42BC /* Readme.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +46,8 @@
 		4339D2EE2ECA23D600D3C9FB /* MarketMoodWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MarketMoodWidgetExtension.entitlements; sourceTree = "<group>"; };
 		435737F72EE1EDCE006516D8 /* generate-api-key.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "generate-api-key.sh"; sourceTree = "<group>"; };
 		439F0F282E93D75200101CA0 /* MarketMood.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MarketMood.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		43F193372EE32C9000FC42BC /* Readme.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Readme.md; sourceTree = "<group>"; };
+		43F193392EE32D2C00FC42BC /* Sample.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = Sample.jpeg; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -123,12 +126,14 @@
 		439F0F1F2E93D75200101CA0 = {
 			isa = PBXGroup;
 			children = (
+				43F193372EE32C9000FC42BC /* Readme.md */,
 				435737F82EE1EDCE006516D8 /* scripts */,
 				4339D2EE2ECA23D600D3C9FB /* MarketMoodWidgetExtension.entitlements */,
 				439F0F2A2E93D75200101CA0 /* MarketMood */,
 				4339D2D42ECA223000D3C9FB /* MarketMoodWidget */,
 				4339D2CF2ECA223000D3C9FB /* Frameworks */,
 				439F0F292E93D75200101CA0 /* Products */,
+				43F193392EE32D2C00FC42BC /* Sample.jpeg */,
 			);
 			sourceTree = "<group>";
 		};
@@ -170,6 +175,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 439F0F352E93D75500101CA0 /* Build configuration list for PBXNativeTarget "MarketMood" */;
 			buildPhases = (
+				43F192162EE2D32F00FC42BC /* ShellScript */,
 				439F0F242E93D75200101CA0 /* Sources */,
 				439F0F252E93D75200101CA0 /* Frameworks */,
 				439F0F262E93D75200101CA0 /* Resources */,
@@ -241,11 +247,35 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				43F193382EE32C9500FC42BC /* Readme.md in Resources */,
 				435737F92EE1EDCE006516D8 /* generate-api-key.sh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		43F192162EE2D32F00FC42BC /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/generate-api-key.sh",
+				"$(SRCROOT)/MarketMood/Config.xcconfig",
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/MarketMood/APIKey.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = " \"${SRCROOT}/scripts/generate-api-key.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4339D2CA2ECA223000D3C9FB /* Sources */ = {
